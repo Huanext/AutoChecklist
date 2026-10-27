@@ -264,8 +264,10 @@ function ctx() {
   const asDay = +DATA.asOf.slice(8, 10);
   const due = [], weds = [];
   for (let d = 1; d < asDay; d++) { due.push(d); if (new Date(Y, M - 1, d).getDay() === 3) weds.push(d); }
-  const today = asDay, todayWed = new Date(Y, M - 1, today).getDay() === 3;
-  return { Y, M, due, weds, today, todayWed };
+  const today = asDay, todayWed = new Date(Y, M - 1, today).getDay() === 3, hm = DATA.asOf.slice(11, 16);
+  // today counts for open / close once its deadline (12:00 / 22:00) had passed when the data was pulled
+  const dueOpen = hm >= OPEN_BY ? [...due, today] : due, dueClose = hm >= CLOSE_BY ? [...due, today] : due;
+  return { Y, M, due, weds, today, todayWed, dueOpen, dueClose, hm };
 }
 const isLotus = s => /lotus/i.test(s.type);
 const inWi = s => !isLotus(s);
@@ -274,14 +276,14 @@ function inFraud(s, sc) { const S = s.size === 'S', F = !!s.frm; return sc === '
 function compute() {
   const C = ctx(), sc = $('#sScope').value, D = DATA;
   const tmByShop = {}; for (const l of D.tm) { const p = l.split('|'); (tmByShop[p[3]] = tmByShop[p[3]] || new Set()).add(p[5]); }
-  const days = (str, ok) => C.due.filter(d => str && ok.includes(str[d - 1]));
+  const days = (str, ok, list) => (list || C.due).filter(d => str && ok.includes(str[d - 1]));
   const res = MASTER.map(s => {
     const r = { s, t: {} }, sd = D.sd[s.code] || '';
     const put = (k, doneDays, dueDays, today) => { r.t[k] = { done: doneDays.length, due: dueDays.length, miss: dueDays.filter(d => !doneDays.includes(d)), today }; };
-    put('open', days(sd, '25'), C.due, sd[C.today - 1] ? ('25'.includes(sd[C.today - 1]) ? 'ok' : '14'.includes(sd[C.today - 1]) ? 'late' : 'no') : 'no');
-    r.late = days(sd, '14');
-    put('close', C.due.filter(d => closeCode(s.code, d) === 2), C.due);
-    r.lateClose = C.due.filter(d => closeCode(s.code, d) === 1);
+    put('open', days(sd, '25', C.dueOpen), C.dueOpen, sd[C.today - 1] ? ('25'.includes(sd[C.today - 1]) ? 'ok' : '14'.includes(sd[C.today - 1]) ? 'late' : 'no') : 'no');
+    r.late = days(sd, '14', C.dueOpen);
+    put('close', C.dueClose.filter(d => closeCode(s.code, d) === 2), C.dueClose);
+    r.lateClose = C.dueClose.filter(d => closeCode(s.code, d) === 1);
     for (const k of ['fd', 'ti']) { if ((k === 'fd' && !inFraud(s, sc)) || (k === 'ti' && !inTi(s))) { r.t[k] = null; continue; } const b = D[k][s.code] || ''; put(k, days(b, '1'), C.due, b[C.today - 1] === '1' ? 'ok' : 'no'); }
     for (const k of ['fw', 'wi']) { if ((k === 'fw' && !inFraud(s, sc)) || (k === 'wi' && !inWi(s))) { r.t[k] = null; continue; } const b = D[k][s.code] || ''; put(k, C.weds.filter(d => b[d - 1] === '1'), C.weds, C.todayWed ? (b[C.today - 1] === '1' ? 'ok' : 'no') : ''); }
     for (const k of ['cs', 'sv']) { const b = D[k][s.code] || ''; const n = [...b].filter(x => x === '1').length; r.t[k] = { done: n ? 1 : 0, due: 1, miss: [], cnt: n }; }
@@ -378,7 +380,7 @@ function render() {
     if (SORT) list.sort((a, b) => { const va = SORT.k === 'pct' ? a.pct : a.t[SORT.k] ? pct(a.t[SORT.k].done, a.t[SORT.k].due) ?? -1 : -2, vb = SORT.k === 'pct' ? b.pct : b.t[SORT.k] ? pct(b.t[SORT.k].done, b.t[SORT.k].due) ?? -1 : -2; return (va - vb) * SORT.d; });
     const cell = (t, T) => { if (!t) return `<td class="n x">ไม่ต้องทำ</td>`; if (!t.due) return `<td class="n x">–</td>`; const p = pct(t.done, t.due); const tip = t.miss.length ? `ขาด: ${dl(C, t.miss)}` : ''; return `<td class="n" title="${tip}"><span class="pill ${cls(p)}">${T.f === 'M' ? (t.done ? '✓ ' + t.cnt + ' ครั้ง' : 'ยังไม่ทำ') : t.done + '/' + t.due}</span></td>`; };
     V.innerHTML = `<div class="panel"><table><thead><tr><th>รหัส</th><th>สาขา</th><th>Area</th><th>Type</th><th>Size</th><th>FRM</th>${TOPICS.map(T => `<th class="n" data-s="${T.k}">${T.short}</th>`).join('')}<th class="n" data-s="pct">รวม</th></tr></thead><tbody>${list.map(r => `<tr><td>${r.s.code}</td><td>${r.s.name}</td><td>${r.s.area}</td><td>${r.s.type}</td><td>${r.s.size}</td><td>${r.s.frm || ''}</td>${TOPICS.map(T => cell(r.t[T.k], T)).join('')}<td class="n"><b style="color:${col(r.pct)}">${fp(r.pct)}</b></td></tr>`).join('')}</tbody></table></div>
-      <div class="note">${list.length} สาขา • เอาเมาส์ชี้ที่ตัวเลขเพื่อดูวันที่ขาด • กดหัวคอลัมน์เพื่อเรียง • วันนี้ (${C.today}/${C.M}) ยังไม่นับ ดูได้ในแท็บปฏิทิน</div>`;
+      <div class="note">${list.length} สาขา • เอาเมาส์ชี้ที่ตัวเลขเพื่อดูวันที่ขาด • กดหัวคอลัมน์เพื่อเรียง • เปิดร้านนับถึงวันที่ ${C.dueOpen.slice(-1)[0] || '-'} • ปิดร้านนับถึงวันที่ ${C.dueClose.slice(-1)[0] || '-'} • หัวข้ออื่นนับถึงเมื่อวาน (${C.today - 1}/${C.M})</div>`;
     V.querySelectorAll('th[data-s]').forEach(th => th.onclick = () => { SORT = { k: th.dataset.s, d: SORT && SORT.k === th.dataset.s ? -SORT.d : 1 }; render(); });
   } else if (TAB === 'area') {
     const g = {}; rows.forEach(r => (g[r.s.region + '|' + r.s.area] = g[r.s.region + '|' + r.s.area] || []).push(r));
@@ -419,7 +421,7 @@ function render() {
       <tr><td>Cross Store</td><td>ทุกสาขา</td><td>รายเดือน</td><td>สาขาถูกตรวจอย่างน้อย 1 ครั้งในเดือน</td></tr>
       <tr><td>Store Visit</td><td>ทุกสาขา</td><td>รายเดือน</td><td>สาขาถูกตรวจเยี่ยมอย่างน้อย 1 ครั้งในเดือน</td></tr>
       <tr><td>Retail TM</td><td>ทุกสาขา / รายบุคคล</td><td>รายเดือน</td><td>รายสาขา: ถูกตรวจในเดือน • รายบุคคล: AM 2, FC 2, FRM 4 สาขาไม่ซ้ำ • FRM ต้องตรวจครบ Sales, After Sales, Retention ด้วย (ไม่ต้องเป็นสาขาเดียวกัน) = 100%</td></tr>
-      </tbody></table><div class="note">รายวัน/รายสัปดาห์นับถึงเมื่อวาน (วันที่ ${C.today - 1}) เพราะวันนี้ยังไม่จบวัน • สาขาที่ไม่อยู่ใน Master Shop จะไม่ถูกนับ</div></div>`;
+      </tbody></table><div class="note">เปิดร้านนับวันนี้ด้วยเมื่อดึงข้อมูลหลัง 12:00 • ปิดร้านนับวันนี้ด้วยเมื่อดึงข้อมูลหลัง 22:00 • หัวข้ออื่นนับถึงเมื่อวาน (วันที่ ${C.today - 1}) เพราะวันนี้ยังไม่จบวัน • สาขาที่ไม่อยู่ใน Master Shop จะไม่ถูกนับ</div></div>`;
   }
 }
 function missList(C, rows) {
