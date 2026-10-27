@@ -52,6 +52,9 @@ input[type=search]{min-width:200px}
 .ms label.opt{display:flex;gap:8px;align-items:flex-start;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:13px}
 .ms label.opt:hover{background:var(--panel2)} .ms label.opt input{margin:3px 0 0;flex:none} .ms label.opt span{flex:1;word-break:break-word} .ms label.opt small{color:var(--ink3)}
 .grid{display:grid;gap:14px}
+.two{display:grid;gap:14px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)} @media (max-width:1000px){.two{grid-template-columns:minmax(0,1fr)}}
+.two h3{font-size:14px;margin:0 0 8px;display:flex;gap:8px;align-items:baseline} .two h3 span{font-size:12px;font-weight:400;color:var(--ink3)}
+.big{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .cards{grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-bottom:14px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
 .kpi{padding:12px 12px 12px 16px;position:relative;overflow:hidden;cursor:pointer;transition:transform .15s}
@@ -166,6 +169,7 @@ function closeCode(code, d) {
   const t = DATA.sdClose ? ((DATA.sdClose[code] || '').split(',')[d - 1] || '') : '';
   return !t || t < CLOSE_BY ? 2 : 1;
 }
+
 let MASTER = typeof EMBED_MASTER !== 'undefined' ? EMBED_MASTER : null, DATA = null, TAB = 'shop', CALK = 'open', SORT = null;
 const $ = s => document.querySelector(s);
 const LS = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
@@ -368,7 +372,7 @@ function render() {
   fillFilters();
   $('#cards').innerHTML = TOPICS.map(T => { const a = topicAgg(rows, T.k); return `<div class="card kpi" data-k="${T.k}" style="--kc:${col(a.p)}${MISSK === T.k ? ';box-shadow:0 0 0 3px var(--accent-soft);border-color:var(--accent)' : ''}" title="คลิกเพื่อดูสาขาที่ยังขาด"><div class="t">${T.name}<br><span>${FREQ[T.f]}</span></div><div class="v" style="color:${col(a.p)}">${fp(a.p)}</div><div class="s">${T.f === 'M' ? `${a.d}/${a.u} สาขา` : `${a.d.toLocaleString()}/${a.u.toLocaleString()} ครั้ง • ${a.n} สาขา`}</div><div class="bar"><i style="width:${(a.p || 0) * 100}%;background:${col(a.p)}"></i></div></div>`; }).join('');
   document.querySelectorAll('.kpi').forEach(c => c.onclick = () => { const k = c.dataset.k; MISSK = MISSK === k && TAB === 'miss' ? null : k; TAB = 'miss'; render(); });
-  const tabs = [['shop', 'รายสาขา'], ['area', 'รายพื้นที่'], ['cal', 'ปฏิทินรายวัน'], ['tm', 'Retail TM รายบุคคล'], ['miss', 'รายการที่ขาด'], ['rule', 'เงื่อนไข']];
+  const tabs = [['today', `วันนี้ (${C.today}/${C.M})`], ['shop', 'รายสาขา'], ['area', 'รายพื้นที่'], ['cal', 'ปฏิทินรายวัน'], ['tm', 'Retail TM รายบุคคล'], ['miss', 'รายการที่ขาด'], ['rule', 'เงื่อนไข']];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button class="tab ${TAB === k ? 'on' : ''}" data-k="${k}">${l}</button>`).join('') + (TAB === 'rule' ? '' : `<button class="btn ${EXPAND ? 'primary' : ''}" id="bExp" title="ขยายตารางเต็มจอ (Esc เพื่อย่อ)">${EXPAND ? '✕ ย่อตาราง' : '⛶ ขยายตาราง'}</button>`);
   if (TAB === 'rule') EXPAND = false;
   document.body.classList.toggle('expand', EXPAND);
@@ -382,6 +386,18 @@ function render() {
     V.innerHTML = `<div class="panel"><table><thead><tr><th>รหัส</th><th>สาขา</th><th>Area</th><th>Type</th><th>Size</th><th>FRM</th>${TOPICS.map(T => `<th class="n" data-s="${T.k}">${T.short}</th>`).join('')}<th class="n" data-s="pct">รวม</th></tr></thead><tbody>${list.map(r => `<tr><td>${r.s.code}</td><td>${r.s.name}</td><td>${r.s.area}</td><td>${r.s.type}</td><td>${r.s.size}</td><td>${r.s.frm || ''}</td>${TOPICS.map(T => cell(r.t[T.k], T)).join('')}<td class="n"><b style="color:${col(r.pct)}">${fp(r.pct)}</b></td></tr>`).join('')}</tbody></table></div>
       <div class="note">${list.length} สาขา • เอาเมาส์ชี้ที่ตัวเลขเพื่อดูวันที่ขาด • กดหัวคอลัมน์เพื่อเรียง • เปิดร้านนับถึงวันที่ ${C.dueOpen.slice(-1)[0] || '-'} • ปิดร้านนับถึงวันที่ ${C.dueClose.slice(-1)[0] || '-'} • หัวข้ออื่นนับถึงเมื่อวาน (${C.today - 1}/${C.M})</div>`;
     V.querySelectorAll('th[data-s]').forEach(th => th.onclick = () => { SORT = { k: th.dataset.s, d: SORT && SORT.k === th.dataset.s ? -SORT.d : 1 }; render(); });
+  } else if (TAB === 'today') {
+    const L = todayList(C, rows), hm = C.hm;
+    const noOpen = L.filter(x => x.open !== 'ok').sort((a, b) => (a.open === 'no' ? 0 : 1) - (b.open === 'no' ? 0 : 1) || a.r.s.area.localeCompare(b.r.s.area));
+    const noClose = L.filter(x => x.close !== 'ok').sort((a, b) => (a.close === 'no' ? 0 : 1) - (b.close === 'no' ? 0 : 1) || a.r.s.area.localeCompare(b.r.s.area));
+    const st = (k, t, by) => k === 'no' ? '<span class="pill r">ยังไม่ทำ</span>' : `<span class="pill y">ทำ ${t} (หลัง ${by})</span>`;
+    const tbl = (list, key, tk, by) => list.length ? `<div class="panel" style="max-height:60vh"><table><thead><tr><th>สาขา</th><th>สถานะ</th><th>Area</th><th>FRM</th></tr></thead><tbody>${list.map(x => `<tr><td><span class="code" style="color:var(--ink3);font-size:12px">${x.r.s.code}</span> ${esc(x.r.s.name)}</td><td>${st(x[key], x[tk], by)}</td><td>${esc(x.r.s.area)}</td><td>${esc(x.r.s.frm)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="card" style="padding:20px;text-align:center;color:var(--ok);font-weight:600">✓ ครบทุกสาขา</div>';
+    const nO = L.filter(x => x.open === 'no').length, lO = L.filter(x => x.open === 'late').length, nC = L.filter(x => x.close === 'no').length, lC = L.filter(x => x.close === 'late').length;
+    V.innerHTML = `<div class="note" style="margin:0 0 10px">ข้อมูล ณ <b>${C.today}/${C.M} ${hm} น.</b> • ${L.length} สาขาตามตัวกรอง • กดปุ่ม Auto Checklist Update บน Desktop เพื่อดูสถานะล่าสุด</div>
+      <div class="two">
+        <div><h3>ยังไม่เปิดร้าน / เปิดหลัง 12:00 <span>ยังไม่ทำ <b class="big" style="color:var(--bad)">${nO}</b> • ทำหลัง 12:00 <b class="big" style="color:var(--part)">${lO}</b></span></h3>${tbl(noOpen, 'open', 'ot', OPEN_BY)}</div>
+        <div><h3>ยังไม่ปิดร้าน / ปิดหลัง 22:00 <span>ยังไม่ทำ <b class="big" style="color:var(--bad)">${nC}</b> • ทำหลัง 22:00 <b class="big" style="color:var(--part)">${lC}</b></span></h3>${hm < '18:00' && nC === L.length ? '<div class="card" style="padding:20px;text-align:center;color:var(--ink3)">ยังไม่ถึงเวลาปิดร้าน</div>' : tbl(noClose, 'close', 'ct', CLOSE_BY)}</div>
+      </div>`;
   } else if (TAB === 'area') {
     const g = {}; rows.forEach(r => (g[r.s.region + '|' + r.s.area] = g[r.s.region + '|' + r.s.area] || []).push(r));
     const keys = Object.keys(g).sort();
@@ -424,6 +440,15 @@ function render() {
       </tbody></table><div class="note">เปิดร้านนับวันนี้ด้วยเมื่อดึงข้อมูลหลัง 12:00 • ปิดร้านนับวันนี้ด้วยเมื่อดึงข้อมูลหลัง 22:00 • หัวข้ออื่นนับถึงเมื่อวาน (วันที่ ${C.today - 1}) เพราะวันนี้ยังไม่จบวัน • สาขาที่ไม่อยู่ใน Master Shop จะไม่ถูกนับ</div></div>`;
   }
 }
+function todayList(C, rows) {
+  const d = C.today, tOf = (obj, code) => obj ? ((obj[code] || '').split(',')[d - 1] || '') : '';
+  return rows.map(r => {
+    const c = (DATA.sd[r.s.code] || '')[d - 1] || '0', ot = tOf(DATA.sdOpen, r.s.code), ct = tOf(DATA.sdClose, r.s.code);
+    const open = '25'.includes(c) ? 'ok' : '14'.includes(c) ? 'late' : 'no';
+    const close = !'345'.includes(c) ? 'no' : (!ct || ct < CLOSE_BY) ? 'ok' : 'late';
+    return { r, open, close, ot, ct };
+  });
+}
 function missList(C, rows) {
   const L = [];
   for (const r of rows) for (const T of TOPICS) { const t = r.t[T.k]; if (!t || !t.due) continue; if (T.f === 'M') { if (!t.done) L.push([r.s.code, r.s.name, r.s.area, r.s.frm, T.name, 1, 'ยังไม่ทำในเดือนนี้']); } else if (t.miss.length) L.push([r.s.code, r.s.name, r.s.area, r.s.frm, T.name, t.miss.length, dl(C, t.miss)]); }
@@ -441,6 +466,7 @@ $('#bXls').onclick = () => {
   add('สรุปรายพื้นที่', [['REGION', 'AREA', 'จำนวนสาขา', ...TOPICS.map(T => T.name + ' %'), 'สาขาที่ครบทุกหัวข้อ'],
     ...Object.keys(g).sort().map(k => [...k.split('|'), g[k].length, ...TOPICS.map(T => { const a = topicAgg(g[k], T.k); return a.p == null ? '-' : Math.round(a.p * 1000) / 10; }), g[k].filter(r => r.full).length]),
     ['รวม', '', rows.length, ...TOPICS.map(T => { const a = topicAgg(rows, T.k); return a.p == null ? '-' : Math.round(a.p * 1000) / 10; }), rows.filter(r => r.full).length]], [8, 26, 10, ...TOPICS.map(() => 14), 12]);
+  add(`วันนี้ ${C.today}-${C.M}`, [['SHOP CODE', 'SHOP NAME', 'AREA', 'FRM', 'เปิดร้าน', 'เวลาเปิด', 'ปิดร้าน', 'เวลาปิด'], ...todayList(C, rows).filter(x => x.open !== 'ok' || x.close !== 'ok').map(x => [x.r.s.code, x.r.s.name, x.r.s.area, x.r.s.frm, x.open === 'ok' ? 'ทำแล้ว' : x.open === 'late' ? 'หลัง 12:00' : 'ยังไม่ทำ', x.ot, x.close === 'ok' ? 'ทำแล้ว' : x.close === 'late' ? 'หลัง 22:00' : 'ยังไม่ทำ', x.ct])], [11, 40, 24, 22, 12, 9, 12, 9]);
   add('รายการที่ขาด', [['SHOP CODE', 'SHOP NAME', 'AREA', 'FRM', 'หัวข้อ', 'จำนวนที่ขาด', 'วันที่ขาด'], ...missList(C, rows)], [11, 40, 24, 22, 26, 10, 80]);
   add('Retail TM รายบุคคล', [['รหัส', 'ชื่อ', 'ตำแหน่ง', 'เป้า (สาขา)', 'ตรวจแล้ว (สาขาไม่ซ้ำ)', 'Sales', 'After Sales', 'Retention', 'Area ที่ตรวจ', '%', 'สถานะ'],
     ...tmPeople().map(p => [p.id, p.name, p.pos, p.target || '-', p.n, p.fns['Sales'] || 0, p.fns['After Sales'] || 0, p.fns['Retention'] || 0, [...p.areas].join(', '), p.pc == null ? '-' : Math.round(p.pc * 1000) / 10, p.ok == null ? 'ไม่มีเป้า' : p.ok ? 'ครบ 100%' : p.why])], [10, 26, 10, 10, 12, 8, 10, 10, 40, 8, 30]);
