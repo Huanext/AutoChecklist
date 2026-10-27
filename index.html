@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--acc:#0f766e;--acc2:#ccfbf1;
+--ok:#16a34a;--okb:#dcfce7;--warn:#d97706;--warnb:#fef3c7;--bad:#dc2626;--badb:#fee2e2;--na:#f1f5f9}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#111a2b;--ink:#e5e7eb;--mut:#94a3b8;--line:#1f2a3d;--acc:#2dd4bf;--acc2:#123a37;
+--ok:#4ade80;--okb:#14361f;--warn:#fbbf24;--warnb:#3a2c0b;--bad:#f87171;--badb:#3b1414;--na:#162033}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Sarabun,"Segoe UI",Tahoma,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+h1{font-size:20px;margin:0}
+.sub{color:var(--mut);font-size:13px}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+main{padding:16px 20px;max-width:1500px;margin:0 auto}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center}
+select,input[type=search]{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 9px;font:inherit;max-width:100%}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.card .t{font-size:12.5px;color:var(--mut);min-height:36px}
+.card .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.card .s{font-size:12px;color:var(--mut)}
+.bar{height:5px;border-radius:3px;background:var(--na);margin-top:6px;overflow:hidden}.bar i{display:block;height:100%}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:12px}
+.tab{border:0;background:none;color:var(--mut);padding:8px 12px;font:inherit;cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--acc);border-color:var(--acc);font-weight:600}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:70vh}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--card);font-weight:600;font-size:12.5px;color:var(--mut);cursor:pointer;z-index:2}
+td.n,th.n{text-align:right}
+.pill{display:inline-block;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:600}
+.g{background:var(--okb);color:var(--ok)}.y{background:var(--warnb);color:var(--warn)}.r{background:var(--badb);color:var(--bad)}.x{color:var(--mut)}
+.cal td{padding:0;text-align:center;width:22px;min-width:22px;height:22px;font-size:11px}
+.cal td.sh{text-align:left;padding:0 8px;width:auto;position:sticky;left:0;background:var(--card);z-index:1}
+.c0{background:var(--badb)}.c1{background:var(--warnb)}.c2{background:var(--okb)}.cn{background:var(--na)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin:8px 0}
+.legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px;background:var(--c)}
+.empty{padding:50px 20px;text-align:center;color:var(--mut)}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:30px;text-align:center;background:var(--card);margin:20px auto;max-width:720px}
+.drop.hover{border-color:var(--acc);background:var(--acc2)}
+.note{font-size:12.5px;color:var(--mut);margin-top:10px}
+code{background:var(--na);padding:1px 5px;border-radius:4px}
+.bm{display:inline-block;background:var(--acc);color:#fff;text-decoration:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:grab}
+@media (max-width:640px){header,main{padding-left:16px;padding-right:16px}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Auto Checklist</h1><div class="sub" id="asof">ยังไม่มีข้อมูล</div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <label class="btn">โหลดไฟล์ข้อมูล (.json)<input type="file" id="fData" accept=".json" hidden></label>
+    <label class="btn">อัปเดต Master Shop (.xlsx)<input type="file" id="fMaster" accept=".xlsx,.xls" hidden></label>
+    <button class="btn p" id="bXls" disabled>Export Excel</button>
+  </div>
+</header>
+<main>
+  <div id="start" class="drop">
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px">ลากไฟล์ checklist_data_*.json มาวางที่นี่</div>
+    <div class="sub">หรือกดปุ่ม “โหลดไฟล์ข้อมูล” ด้านบน • ไฟล์ได้จากปุ่ม Auto Checklist บนหน้า Retail Checklist Report</div>
+    <div class="note" id="mstat"></div>
+    <div class="note" style="margin-top:18px">ติดตั้งปุ่ม (ครั้งเดียว): ลากปุ่มนี้ไปวางที่แถบบุ๊กมาร์กของ Chrome →
+      <a class="bm" id="bmk" href="#">Auto Checklist</a></div>
+  </div>
+  <div id="app" hidden>
+    <div class="filters">
+      <select id="sRegion"></select><select id="sArea"></select><select id="sType"></select><select id="sFrm"></select>
+      <select id="sScope" title="สาขาที่ต้องทำ Fraud Checklist">
+        <option value="frm">Fraud: สาขาที่มี FRM ดูแล</option>
+        <option value="s">Fraud: Size S</option>
+        <option value="sfrm">Fraud: Size S และมี FRM</option>
+        <option value="any">Fraud: Size S หรือมี FRM</option>
+      </select>
+      <input type="search" id="q" placeholder="ค้นหารหัส/ชื่อสาขา">
+      <label class="sub"><input type="checkbox" id="onlyMiss"> เฉพาะที่ยังไม่ครบ</label>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div class="tabs" id="tabs"></div>
+    <div id="view"></div>
+    <div class="note" id="foot"></div>
+  </div>
+</main>
+<script>
+
+const BOOKMARKLET = "javascript:(async()=%3E%7Bif(!/retail%5C.ww%5C.co%5C.th$/.test(location.hostname))return%20void%20alert(%22%E0%B8%81%E0%B8%A3%E0%B8%B8%E0%B8%93%E0%B8%B2%E0%B9%80%E0%B8%9B%E0%B8%B4%E0%B8%94%E0%B8%AB%E0%B8%99%E0%B9%89%E0%B8%B2%20Retail%20Checklist%20Report%20(retail.ww.co.th)%20%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7%E0%B8%A5%E0%B9%87%E0%B8%AD%E0%B8%81%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B8%81%E0%B9%88%E0%B8%AD%E0%B8%99%E0%B8%81%E0%B8%94%E0%B8%9B%E0%B8%B8%E0%B9%88%E0%B8%A1%E0%B8%99%E0%B8%B5%E0%B9%89%22);if(window.__aclRunning)return;window.__aclRunning=!0;const%20t=%22/checklistraw/api/export_csv_v2.php%22,e=%5B%5B%22sd%22,%22store_checklist%22,%22Store_Daily_Checklist_Activity%22,%22Store%20Daily%22%5D,%5B%22fr%22,%22fruad_checklist%22,%22checklist%22,%22Fraud%20Daily/Weekly%22%5D,%5B%22wi%22,%22weekly_intransit_db%22,%22weekly_intransit_images%22,%22Weekly%20Intransit%22%5D,%5B%22cs%22,%22cross_store_db%22,%22Cross_Checklist%22,%22Cross%20Store%22%5D,%5B%22tm%22,%22retail_tm_checklist%22,%2205_TM_Activity%22,%22Retail%20TM%22%5D,%5B%22sv%22,%22store_visit_checklist%22,%22Store_Visit_Checklist_Activity%22,%22Store%20Visit%22%5D,%5B%22ti%22,%22trade_in_checklist%22,%22checklist_answers%22,%22Trade-in%22%5D%5D,o=t=%3EString(t).padStart(2,%220%22),n=new%20Date,s=n.getFullYear(),i=n.getMonth()+1,a=n.getDate(),r=%60$%7Bs%7D-$%7Bo(i)%7D%60,c=new%20Date(s,i,0).getDate(),l=%5B%5D;for(let%20t=1;t%3C=a;t+=7)l.push(%60$%7Br%7D-$%7Bo(t)%7D%20to%20$%7Br%7D-$%7Bo(Math.min(t+6,a))%7D%60);const%20d=document.createElement(%22div%22);d.style.cssText=%22position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;font-family:Sarabun,Segoe%20UI,Tahoma,sans-serif%22,d.innerHTML=%60%3Cdiv%20style=%22background:%23fff;color:%230f172a;border-radius:14px;padding:22px%2026px;width:min(520px,92vw);box-shadow:0%2020px%2050px%20rgba(0,0,0,.3)%22%3E%5Cn%20%20%20%20%3Cdiv%20style=%22font-size:18px;font-weight:700;margin-bottom:4px%22%3EAuto%20Checklist%3C/div%3E%5Cn%20%20%20%20%3Cdiv%20style=%22font-size:13px;color:%2364748b;margin-bottom:14px%22%3E%E0%B8%94%E0%B8%B6%E0%B8%87%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B8%A1%E0%B8%B9%E0%B8%A5%E0%B9%80%E0%B8%94%E0%B8%B7%E0%B8%AD%E0%B8%99%20$%7Br%7D%20(1%E2%80%93$%7Ba%7D)%20%E0%B8%97%E0%B8%B1%E0%B9%89%E0%B8%87%207%20%E0%B8%AB%E0%B8%B1%E0%B8%A7%E0%B8%82%E0%B9%89%E0%B8%AD%3C/div%3E%5Cn%20%20%20%20%3Cdiv%20id=%22acl-list%22%20style=%22font-size:14px;line-height:1.9%22%3E%3C/div%3E%5Cn%20%20%20%20%3Cdiv%20id=%22acl-msg%22%20style=%22font-size:13px;color:%2364748b;margin-top:10px%22%3E%3C/div%3E%5Cn%20%20%20%20%3Cdiv%20id=%22acl-btn%22%20style=%22margin-top:14px;display:flex;gap:8px;justify-content:flex-end%22%3E%3C/div%3E%3C/div%3E%60,document.body.appendChild(d);const%20p=d.querySelector(%22%23acl-list%22);e.forEach((t=%3Ep.insertAdjacentHTML(%22beforeend%22,%60%3Cdiv%3E%3Cspan%20id=%22acl-$%7Bt%5B0%5D%7D%22%20style=%22display:inline-block;width:92px;color:%2364748b%22%3E%E0%B8%A3%E0%B8%AD%E2%80%A6%3C/span%3E$%7Bt%5B3%5D%7D%3C/div%3E%60)));const%20h=(t,e,o)=%3E%7Bconst%20n=d.querySelector(%22%23acl-%22+t);n.textContent=e,n.style.color=o%7C%7C%22%2364748b%22%7D,f=t=%3Ed.querySelector(%22%23acl-msg%22).textContent=t,_=(t,e,o)=%3E%7Bconst%20n=document.createElement(%22button%22);n.textContent=t,n.style.cssText=%22border:0;border-radius:8px;padding:8px%2014px;font-size:14px;cursor:pointer;%22+(o?%22background:%230f766e;color:%23fff%22:%22background:%23e2e8f0;color:%230f172a%22),n.onclick=e,d.querySelector(%22%23acl-btn%22).appendChild(n)%7D;function%20u(t)%7Bconst%20e=%5B%5D;let%20o=%5B%5D,n=%22%22,s=!1;for(let%20i=0;i%3Ct.length;i++)%7Bconst%20a=t%5Bi%5D;s?'%22'===a?'%22'===t%5Bi+1%5D?(n+='%22',i++):s=!1:n+=a:'%22'===a?s=!0:%22,%22===a?(o.push(n),n=%22%22):%22%5Cn%22===a?(o.push(n.replace(/%5Cr$/,%22%22)),e.push(o),o=%5B%5D,n=%22%22):n+=a%7Dreturn(n%7C%7Co.length)&&(o.push(n),e.push(o)),e.length&&e%5B0%5D%5B0%5D&&(e%5B0%5D%5B0%5D=e%5B0%5D%5B0%5D.replace(/%5E%EF%BB%BF/,%22%22)),e%7Dasync%20function%20m(e,o,n)%7Bconst%20s=%60$%7Bt%7D?db=$%7Be%7D&table=$%7BencodeURIComponent(o)%7D&dateRange=$%7BencodeURIComponent(n)%7D%60;for(let%20t=0;t%3C3;t++)%7Btry%7Bconst%20t=await%20fetch(s,%7Bcredentials:%22include%22%7D),e=await%20t.text();if(t.ok&&!/%5E%5Cs*%3C/.test(e))return%20u(e);if(/login/i.test(t.url))throw%20new%20Error(%22LOGIN%22)%7Dcatch(t)%7Bif(%22LOGIN%22===t.message)throw%20t%7Dawait%20new%20Promise((t=%3EsetTimeout(t,3e3)))%7Dthrow%20new%20Error(%22%E0%B8%94%E0%B8%B6%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88%E0%B8%AA%E0%B8%B3%E0%B9%80%E0%B8%A3%E0%B9%87%E0%B8%88%20%22+e+%22%20%22+n)%7Dconst%20g=%7B%7D,w=%7B%7D;e.forEach((t=%3E%7Bg%5Bt%5B0%5D%5D=%5B%5D,w%5Bt%5B0%5D%5D=0%7D));const%20y=%5B%5D;e.forEach((t=%3El.forEach((e=%3Ey.push(%5Bt,e%5D)))));let%20v=0,b=null;async%20function%20x()%7Bfor(;v%3Cy.length&&!b;)%7Bconst%5Bt,e%5D=y%5Bv++%5D;h(t%5B0%5D,%60$%7Bw%5Bt%5B0%5D%5D%7D/$%7Bl.length%7D%60,%22%23b45309%22);try%7Bconst%20o=await%20m(t%5B1%5D,t%5B2%5D,e);g%5Bt%5B0%5D%5D.header%7C%7C(g%5Bt%5B0%5D%5D.header=o%5B0%5D);for(let%20e=1;e%3Co.length;e++)o%5Be%5D.length%3E3&&g%5Bt%5B0%5D%5D.push(o%5Be%5D);w%5Bt%5B0%5D%5D++,h(t%5B0%5D,w%5Bt%5B0%5D%5D===l.length?%60%E2%9C%93%20$%7Bg%5Bt%5B0%5D%5D.length.toLocaleString()%7D%60:%60$%7Bw%5Bt%5B0%5D%5D%7D/$%7Bl.length%7D%60,w%5Bt%5B0%5D%5D===l.length?%22%23047857%22:%22%23b45309%22)%7Dcatch(t)%7Bb=t%7D%7D%7Dconst%20S=Date.now(),$=setInterval((()=%3Ef(%60%E0%B8%81%E0%B8%B3%E0%B8%A5%E0%B8%B1%E0%B8%87%E0%B8%94%E0%B8%B6%E0%B8%87%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B8%A1%E0%B8%B9%E0%B8%A5%E2%80%A6%20$%7BMath.round((Date.now()-S)/1e3)%7D%20%E0%B8%A7%E0%B8%B4%E0%B8%99%E0%B8%B2%E0%B8%97%E0%B8%B5%20(Store%20Daily%20%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B9%80%E0%B8%A7%E0%B8%A5%E0%B8%B2%E0%B8%99%E0%B8%B2%E0%B8%99%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%AA%E0%B8%B8%E0%B8%94)%60)),1e3);if(await%20Promise.all(%5Bx(),x()%5D),clearInterval($),b)return%20f(%22LOGIN%22===b.message?%22%E0%B8%AB%E0%B8%A1%E0%B8%94%E0%B9%80%E0%B8%A7%E0%B8%A5%E0%B8%B2%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B9%87%E0%B8%AD%E0%B8%81%E0%B8%AD%E0%B8%B4%E0%B8%99%20%E0%B8%81%E0%B8%A3%E0%B8%B8%E0%B8%93%E0%B8%B2%E0%B8%A5%E0%B9%87%E0%B8%AD%E0%B8%81%E0%B8%AD%E0%B8%B4%E0%B8%99%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7%E0%B8%81%E0%B8%94%E0%B8%AD%E0%B8%B5%E0%B8%81%E0%B8%84%E0%B8%A3%E0%B8%B1%E0%B9%89%E0%B8%87%22:b.message),void%20_(%22%E0%B8%9B%E0%B8%B4%E0%B8%94%22,(()=%3E%7Bd.remove(),window.__aclRunning=!1%7D));f(%22%E0%B8%81%E0%B8%B3%E0%B8%A5%E0%B8%B1%E0%B8%87%E0%B8%AA%E0%B8%A3%E0%B8%B8%E0%B8%9B%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B8%A1%E0%B8%B9%E0%B8%A5%E2%80%A6%22);const%20k=t=%3Eg%5Bt%5D.header%7C%7C%5B%5D,D=(t,...e)=%3E%7Bfor(const%20o%20of%20e)%7Bconst%20e=k(t).findIndex((t=%3Et.toLowerCase()===o.toLowerCase()));if(e%3E=0)return%20e%7Dreturn-1%7D,C=t=%3Et&&t.startsWith(r),I=t=%3E+t.slice(8,10),T=%7B%7D;function%20E(t,e,o,n)%7Bconst%20s=%7B%7D,i=D(t,e),a=D(t,o);for(const%20e%20of%20g%5Bt%5D)%7Bconst%20t=e%5Ba%5D;!C(t)%7C%7Cn&&!n(e)%7C%7C((s%5Be%5Bi%5D%5D=s%5Be%5Bi%5D%5D%7C%7CArray(c).fill(%220%22))%5BI(t)-1%5D=%221%22)%7Dfor(const%20t%20in%20s)s%5Bt%5D=s%5Bt%5D.join(%22%22);return%20s%7Dfunction%20L(t,e,o)%7Bconst%20n=D(t,e),s=D(t,o);if(!(n%3C0%7C%7Cs%3C0))for(const%20e%20of%20g%5Bt%5D)e%5Bn%5D&&!T%5Be%5Bn%5D%5D&&(T%5Be%5Bn%5D%5D=e%5Bs%5D)%7Dconst%20R=%7Bv:1,month:r,days:c,asOf:%60$%7Br%7D-$%7Bo(a)%7D%20$%7Bo(n.getHours())%7D:$%7Bo(n.getMinutes())%7D%60,counts:%7B%7D%7D;e.forEach((t=%3ER.counts%5Bt%5B0%5D%5D=g%5Bt%5B0%5D%5D.length));%7Bconst%20t=D(%22sd%22,%22Shop_ID%22),e=D(%22sd%22,%22Timestamp%22),o=D(%22sd%22,%22Group_Type%22),n=%7B%7D;for(const%20s%20of%20g.sd)%7Bconst%20i=s%5Be%5D;if(!C(i))continue;const%20a=n%5Bs%5Bt%5D%5D=n%5Bs%5Bt%5D%5D%7C%7C%7B%7D,r=I(i)-1,c=a%5Br%5D=a%5Br%5D%7C%7C%7Bop:%22%22,cl:0%7D;if(%22Shop%20Open%22===s%5Bo%5D)%7Bconst%20t=i.slice(11,16);(!c.op%7C%7Ct%3Cc.op)&&(c.op=t)%7Delse%22Shop%20Close%22===s%5Bo%5D&&(c.cl=1)%7DR.sd=%7B%7D,R.sdOpen=%7B%7D;for(const%20t%20in%20n)%7Bconst%20e=Array(c).fill(%220%22),o=Array(c).fill(%22%22);for(const%20s%20in%20n%5Bt%5D)%7Bconst%20i=n%5Bt%5D%5Bs%5D;let%20a=i.op?i.op%3C%2212:00%22?2:1:0;i.cl&&(a=a?a+3:3),e%5Bs%5D=String(a),o%5Bs%5D=i.op%7DR.sd%5Bt%5D=e.join(%22%22),R.sdOpen%5Bt%5D=o.join(%22,%22)%7DL(%22sd%22,%22Shop_ID%22,%22Shop_Name%22)%7D%7Bconst%20t=D(%22fr%22,%22group_name%22);R.fd=E(%22fr%22,%22shop_id%22,%22timestamp%22,(e=%3E/daily/i.test(e%5Bt%5D))),R.fw=E(%22fr%22,%22shop_id%22,%22timestamp%22,(e=%3E/weekly/i.test(e%5Bt%5D))),L(%22fr%22,%22shop_id%22,%22shop_name%22)%7DR.wi=E(%22wi%22,%22shop_id%22,%22uploaded_at%22),L(%22wi%22,%22shop_id%22,%22shop_name%22),R.ti=E(%22ti%22,%22Shop_ID%22,%22created_at%22),L(%22ti%22,%22Shop_ID%22,%22Shop_Name%22),R.cs=E(%22cs%22,%22Shop_ID%22,%22Timestamp%22),L(%22cs%22,%22Shop_ID%22,%22Shop_Name%22),R.sv=E(%22sv%22,%22Shop_ID%22,%22Timestamp%22),L(%22sv%22,%22Shop_ID%22,%22Shop_Name%22);%7Bconst%20t=%5B%22evaluator_id%22,%22evaluator_name%22,%22evaluator_position%22,%22shop_id%22,%22function_type%22,%22created_at%22%5D.map((t=%3ED(%22tm%22,t))),e=new%20Set;for(const%20o%20of%20g.tm)%7Bconst%20n=t.map((t=%3Eo%5Bt%5D%7C%7C%22%22));C(n%5B5%5D)&&(n%5B5%5D=n%5B5%5D.slice(0,10),e.add(n.join(%22%7C%22)))%7DR.tm=%5B...e%5D,L(%22tm%22,%22shop_id%22,%22shop_name%22)%7DR.names=T;const%20M=JSON.stringify(R),j=%60checklist_data_$%7Br.replace(%22-%22,%22%22)%7D$%7Bo(a)%7D_$%7Bo(n.getHours())%7D$%7Bo(n.getMinutes())%7D.json%60,O=()=%3E%7Bconst%20t=document.createElement(%22a%22);t.href=URL.createObjectURL(new%20Blob(%5BM%5D,%7Btype:%22application/json%22%7D)),t.download=j,document.body.appendChild(t),t.click(),t.remove()%7D;window.__aclData=R,f(%60%E0%B9%80%E0%B8%AA%E0%B8%A3%E0%B9%87%E0%B8%88%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7%20%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B9%80%E0%B8%A7%E0%B8%A5%E0%B8%B2%20$%7BMath.round((Date.now()-S)/1e3)%7D%20%E0%B8%A7%E0%B8%B4%E0%B8%99%E0%B8%B2%E0%B8%97%E0%B8%B5%20%E2%80%A2%20%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B8%A1%E0%B8%B9%E0%B8%A5%20%E0%B8%93%20$%7BR.asOf%7D%60),_(%22%E0%B8%9B%E0%B8%B4%E0%B8%94%22,(()=%3E%7Bd.remove(),window.__aclRunning=!1%7D)),_(%22%E0%B8%94%E0%B8%B2%E0%B8%A7%E0%B8%99%E0%B9%8C%E0%B9%82%E0%B8%AB%E0%B8%A5%E0%B8%94%E0%B9%84%E0%B8%9F%E0%B8%A5%E0%B9%8C%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B8%A1%E0%B8%B9%E0%B8%A5%22,O),%22%22.startsWith(%22http%22)?_(%22%E0%B9%80%E0%B8%9B%E0%B8%B4%E0%B8%94%20Dashboard%22,(()=%3E%7Bconst%20t=window.open(%22%22,%22_blank%22),e=o=%3E%7Bo.source===t&&o.data&&%22acl-ready%22===o.data.type&&(t.postMessage(%7Btype:%22acl-data%22,data:R%7D,%22*%22),window.removeEventListener(%22message%22,e))%7D;window.addEventListener(%22message%22,e)%7D),!0):O()%7D)();";
+let MASTER = typeof EMBED_MASTER !== 'undefined' ? EMBED_MASTER : null, DATA = null, TAB = 'shop', CALK = 'open', SORT = null;
+const $ = s => document.querySelector(s);
+const LS = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+const TH_MON = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const TOPICS = [
+  { k: 'open', name: 'เปิดร้าน (ก่อน 12:00)', short: 'เปิดร้าน', f: 'D' },
+  { k: 'close', name: 'ปิดร้าน', short: 'ปิดร้าน', f: 'D' },
+  { k: 'fd', name: 'Fraud Daily', short: 'Fraud D', f: 'D', fraud: 1 },
+  { k: 'fw', name: 'Fraud Weekly (วันพุธ)', short: 'Fraud W', f: 'W', fraud: 1 },
+  { k: 'wi', name: 'Weekly Intransit (วันพุธ)', short: 'Intransit', f: 'W' },
+  { k: 'ti', name: 'Trade-in', short: 'Trade-in', f: 'D' },
+  { k: 'cs', name: 'Cross Store', short: 'Cross', f: 'M' },
+  { k: 'sv', name: 'Store Visit', short: 'Visit', f: 'M' },
+  { k: 'tm', name: 'Retail TM', short: 'TM', f: 'M' }
+];
+const TM_TARGET = { AM: 2, FC: 2, FRM: 4 };
+const FREQ = { D: 'รายวัน', W: 'ทุกวันพุธ', M: 'รายเดือน' };
+
+/* ---------- master ---------- */
+function masterFromSheet(wb) {
+  const ws = wb.Sheets['Master Shop'] || wb.Sheets[wb.SheetNames.find(n => /master/i.test(n))];
+  if (!ws) throw new Error('ไม่พบชีต Master Shop');
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+  const g = (r, ...ks) => { for (const k of ks) for (const c in r) if (c.trim().toLowerCase() === k.toLowerCase()) return String(r[c]).trim(); return ''; };
+  return rows.map(r => ({ code: g(r, 'SHOP CODE'), name: g(r, 'SHOP NAME'), type: g(r, 'TYPE SHOP'), area: g(r, 'AREA'), size: g(r, 'Size Shop').toUpperCase(), region: g(r, 'REGION'), company: g(r, 'COMPANY'), frm: g(r, 'FRM') })).filter(r => r.code);
+}
+$('#fMaster').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { MASTER = masterFromSheet(XLSX.read(await f.arrayBuffer())); LS.set('acl-master', MASTER); init(); alert('อัปเดต Master Shop แล้ว ' + MASTER.length + ' สาขา'); }
+  catch (err) { alert(err.message); }
+  e.target.value = '';
+};
+
+/* ---------- data in ---------- */
+function loadData(d) {
+  if (!d || d.v !== 1 || !d.sd) { alert('ไฟล์ข้อมูลไม่ถูกต้อง'); return; }
+  DATA = d; LS.set('acl-data', d); init();
+}
+$('#fData').onchange = async e => { const f = e.target.files[0]; if (f) loadData(JSON.parse(await f.text())); e.target.value = ''; };
+document.addEventListener('dragover', e => { e.preventDefault(); $('#start').classList.add('hover'); });
+document.addEventListener('dragleave', () => $('#start').classList.remove('hover'));
+document.addEventListener('drop', async e => { e.preventDefault(); $('#start').classList.remove('hover'); const f = e.dataTransfer.files[0]; if (!f) return; if (/\.xlsx?$/i.test(f.name)) { MASTER = masterFromSheet(XLSX.read(await f.arrayBuffer())); LS.set('acl-master', MASTER); init(); } else loadData(JSON.parse(await f.text())); });
+window.addEventListener('message', e => { if (e.data && e.data.type === 'acl-data') loadData(e.data.data); });
+if (window.opener) try { window.opener.postMessage({ type: 'acl-ready' }, '*'); } catch (e) {}
+
+/* ---------- compute ---------- */
+function ctx() {
+  const [Y, M] = DATA.month.split('-').map(Number);
+  const asDay = +DATA.asOf.slice(8, 10);
+  const due = [], weds = [];
+  for (let d = 1; d < asDay; d++) { due.push(d); if (new Date(Y, M - 1, d).getDay() === 3) weds.push(d); }
+  const today = asDay, todayWed = new Date(Y, M - 1, today).getDay() === 3;
+  return { Y, M, due, weds, today, todayWed };
+}
+function inFraud(s, sc) { const S = s.size === 'S', F = !!s.frm; return sc === 's' ? S : sc === 'sfrm' ? S && F : sc === 'any' ? S || F : F; }
+function compute() {
+  const C = ctx(), sc = $('#sScope').value, D = DATA;
+  const tmByShop = {}; for (const l of D.tm) { const p = l.split('|'); (tmByShop[p[3]] = tmByShop[p[3]] || new Set()).add(p[5]); }
+  const days = (str, ok) => C.due.filter(d => str && ok.includes(str[d - 1]));
+  const res = MASTER.map(s => {
+    const r = { s, t: {} }, sd = D.sd[s.code] || '';
+    const put = (k, doneDays, dueDays, today) => { r.t[k] = { done: doneDays.length, due: dueDays.length, miss: dueDays.filter(d => !doneDays.includes(d)), today }; };
+    put('open', days(sd, '25'), C.due, sd[C.today - 1] ? ('25'.includes(sd[C.today - 1]) ? 'ok' : '14'.includes(sd[C.today - 1]) ? 'late' : 'no') : 'no');
+    r.late = days(sd, '14');
+    put('close', days(sd, '345'), C.due);
+    for (const k of ['fd', 'ti']) { if (k === 'fd' && !inFraud(s, sc)) { r.t[k] = null; continue; } const b = D[k][s.code] || ''; put(k, days(b, '1'), C.due, b[C.today - 1] === '1' ? 'ok' : 'no'); }
+    for (const k of ['fw', 'wi']) { if (k === 'fw' && !inFraud(s, sc)) { r.t[k] = null; continue; } const b = D[k][s.code] || ''; put(k, C.weds.filter(d => b[d - 1] === '1'), C.weds, C.todayWed ? (b[C.today - 1] === '1' ? 'ok' : 'no') : ''); }
+    for (const k of ['cs', 'sv']) { const b = D[k][s.code] || ''; const n = [...b].filter(x => x === '1').length; r.t[k] = { done: n ? 1 : 0, due: 1, miss: [], cnt: n }; }
+    { const n = tmByShop[s.code] ? tmByShop[s.code].size : 0; r.t.tm = { done: n ? 1 : 0, due: 1, miss: [], cnt: n }; }
+    let sum = 0, cnt = 0; for (const k in r.t) { const t = r.t[k]; if (t && t.due) { sum += t.done / t.due; cnt++; } }
+    r.pct = cnt ? sum / cnt : 1; r.full = TOPICS.every(T => !r.t[T.k] || !r.t[T.k].due || r.t[T.k].done >= r.t[T.k].due);
+    return r;
+  });
+  return { C, res };
+}
+function tmPeople() {
+  const ms = Object.fromEntries(MASTER.map(s => [s.code, s])), P = {};
+  for (const l of DATA.tm) {
+    const [id, name, pos, shop, fn, date] = l.split('|');
+    const p = P[id] = P[id] || { id, name: name.trim(), pos, shops: new Set(), fns: {}, areas: new Set(), out: 0, dates: new Set() };
+    if (!ms[shop]) { p.out++; continue; }
+    p.shops.add(shop); p.fns[fn] = (p.fns[fn] || 0) + 1; p.areas.add(ms[shop].area); p.dates.add(date);
+  }
+  const names = new Set(Object.values(P).map(p => p.name));
+  [...new Set(MASTER.map(s => s.frm).filter(Boolean))].forEach(n => { if (!names.has(n.trim())) P['frm:' + n] = { id: '-', name: n.trim(), pos: 'FRM', shops: new Set(), fns: {}, areas: new Set(), out: 0, dates: new Set(), none: 1 }; });
+  return Object.values(P).map(p => { const tg = TM_TARGET[p.pos] || 0; return { ...p, target: tg, n: p.shops.size, ok: tg ? p.shops.size >= tg : null }; })
+    .sort((a, b) => (a.pos > b.pos ? 1 : a.pos < b.pos ? -1 : 0) || (a.ok === b.ok ? a.name.localeCompare(b.name, 'th') : a.ok ? 1 : -1));
+}
+
+/* ---------- filters ---------- */
+function opts(sel, label, vals, keep) { const v = keep ? sel.value : ''; sel.innerHTML = `<option value="">${label}: ทั้งหมด</option>` + vals.map(x => `<option>${x}</option>`).join(''); if (vals.includes(v)) sel.value = v; }
+function fillFilters() {
+  const u = f => [...new Set(MASTER.map(f).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+  opts($('#sRegion'), 'Region', u(s => s.region), 1);
+  const rg = $('#sRegion').value;
+  opts($('#sArea'), 'Area', u(s => (!rg || s.region === rg) ? s.area : ''), 1);
+  opts($('#sType'), 'Type', u(s => s.type), 1);
+  opts($('#sFrm'), 'FRM', u(s => s.frm), 1);
+}
+function filt(res) {
+  const rg = $('#sRegion').value, ar = $('#sArea').value, ty = $('#sType').value, fr = $('#sFrm').value, q = $('#q').value.trim().toLowerCase(), om = $('#onlyMiss').checked;
+  return res.filter(r => (!rg || r.s.region === rg) && (!ar || r.s.area === ar) && (!ty || r.s.type === ty) && (!fr || r.s.frm === fr) && (!q || (r.s.code + ' ' + r.s.name).toLowerCase().includes(q)) && (!om || !r.full));
+}
+
+/* ---------- render ---------- */
+const pct = (a, b) => b ? a / b : null;
+const fp = v => v == null ? '–' : (v * 100).toFixed(v >= .995 || v === 0 ? 0 : 1) + '%';
+const cls = v => v == null ? 'x' : v >= .999 ? 'g' : v >= .8 ? 'y' : 'r';
+const col = v => v == null ? 'var(--na)' : v >= .999 ? 'var(--ok)' : v >= .8 ? 'var(--warn)' : 'var(--bad)';
+const dl = (C, arr) => arr.map(d => d + '/' + C.M).join(', ');
+function topicAgg(rows, k) { let d = 0, u = 0, n = 0; for (const r of rows) { const t = r.t[k]; if (!t) continue; n++; d += Math.min(t.done, t.due); u += t.due; } return { d, u, n, p: pct(d, u) }; }
+function render() {
+  if (!DATA || !MASTER) return;
+  const { C, res } = compute(), rows = filt(res);
+  $('#cards').innerHTML = TOPICS.map(T => { const a = topicAgg(rows, T.k); return `<div class="card"><div class="t">${T.name}<br><span style="font-size:11.5px">${FREQ[T.f]}</span></div><div class="v" style="color:${col(a.p)}">${fp(a.p)}</div><div class="s">${T.f === 'M' ? `${a.d}/${a.u} สาขา` : `${a.d.toLocaleString()}/${a.u.toLocaleString()} ครั้ง • ${a.n} สาขา`}</div><div class="bar"><i style="width:${(a.p || 0) * 100}%;background:${col(a.p)}"></i></div></div>`; }).join('');
+  const tabs = [['shop', 'รายสาขา'], ['area', 'รายพื้นที่'], ['cal', 'ปฏิทินรายวัน'], ['tm', 'Retail TM รายบุคคล'], ['miss', 'รายการที่ขาด'], ['rule', 'เงื่อนไข']];
+  $('#tabs').innerHTML = tabs.map(([k, l]) => `<button class="tab ${TAB === k ? 'on' : ''}" data-k="${k}">${l}</button>`).join('');
+  document.querySelectorAll('.tab').forEach(b => b.onclick = () => { TAB = b.dataset.k; render(); });
+  const V = $('#view');
+  if (TAB === 'shop') {
+    let list = rows.slice();
+    if (SORT) list.sort((a, b) => { const va = SORT.k === 'pct' ? a.pct : a.t[SORT.k] ? pct(a.t[SORT.k].done, a.t[SORT.k].due) ?? -1 : -2, vb = SORT.k === 'pct' ? b.pct : b.t[SORT.k] ? pct(b.t[SORT.k].done, b.t[SORT.k].due) ?? -1 : -2; return (va - vb) * SORT.d; });
+    const cell = (t, T) => { if (!t) return `<td class="n x">ไม่ต้องทำ</td>`; if (!t.due) return `<td class="n x">–</td>`; const p = pct(t.done, t.due); const tip = t.miss.length ? `ขาด: ${dl(C, t.miss)}` : ''; return `<td class="n" title="${tip}"><span class="pill ${cls(p)}">${T.f === 'M' ? (t.done ? '✓ ' + t.cnt + ' ครั้ง' : 'ยังไม่ทำ') : t.done + '/' + t.due}</span></td>`; };
+    V.innerHTML = `<div class="panel"><table><thead><tr><th>รหัส</th><th>สาขา</th><th>Area</th><th>Type</th><th>Size</th><th>FRM</th>${TOPICS.map(T => `<th class="n" data-s="${T.k}">${T.short}</th>`).join('')}<th class="n" data-s="pct">รวม</th></tr></thead><tbody>${list.map(r => `<tr><td>${r.s.code}</td><td>${r.s.name}</td><td>${r.s.area}</td><td>${r.s.type}</td><td>${r.s.size}</td><td>${r.s.frm || ''}</td>${TOPICS.map(T => cell(r.t[T.k], T)).join('')}<td class="n"><b style="color:${col(r.pct)}">${fp(r.pct)}</b></td></tr>`).join('')}</tbody></table></div>
+      <div class="note">${list.length} สาขา • เอาเมาส์ชี้ที่ตัวเลขเพื่อดูวันที่ขาด • กดหัวคอลัมน์เพื่อเรียง • วันนี้ (${C.today}/${C.M}) ยังไม่นับ ดูได้ในแท็บปฏิทิน</div>`;
+    V.querySelectorAll('th[data-s]').forEach(th => th.onclick = () => { SORT = { k: th.dataset.s, d: SORT && SORT.k === th.dataset.s ? -SORT.d : 1 }; render(); });
+  } else if (TAB === 'area') {
+    const g = {}; rows.forEach(r => (g[r.s.region + '|' + r.s.area] = g[r.s.region + '|' + r.s.area] || []).push(r));
+    const keys = Object.keys(g).sort();
+    const line = (lbl, rs, b) => `<tr${b ? ' style="font-weight:700"' : ''}><td>${lbl}</td><td class="n">${rs.length}</td>${TOPICS.map(T => { const a = topicAgg(rs, T.k); return `<td class="n"><span class="pill ${cls(a.p)}">${fp(a.p)}</span></td>`; }).join('')}<td class="n">${rs.filter(r => r.full).length}</td></tr>`;
+    V.innerHTML = `<div class="panel"><table><thead><tr><th>Region / Area</th><th class="n">สาขา</th>${TOPICS.map(T => `<th class="n">${T.short}</th>`).join('')}<th class="n">ครบทุกหัวข้อ</th></tr></thead><tbody>${keys.map(k => line(k.replace('|', ' • '), g[k])).join('')}${line('รวม', rows, 1)}</tbody></table></div>`;
+  } else if (TAB === 'cal') {
+    const ks = [['open', 'เปิดร้าน'], ['close', 'ปิดร้าน'], ['fd', 'Fraud Daily'], ['ti', 'Trade-in'], ['fw', 'Fraud Weekly'], ['wi', 'Weekly Intransit']];
+    const N = DATA.days, all = [...Array(C.today).keys()].map(i => i + 1);
+    const code = (r, d) => {
+      if (CALK === 'open' || CALK === 'close') { const c = (DATA.sd[r.s.code] || '')[d - 1] || '0'; if (CALK === 'open') return '25'.includes(c) ? 2 : '14'.includes(c) ? 1 : 0; return '345'.includes(c) ? 2 : 0; }
+      if (!r.t[CALK]) return -1;
+      const isW = CALK === 'fw' || CALK === 'wi', wed = new Date(C.Y, C.M - 1, d).getDay() === 3, b = (DATA[CALK][r.s.code] || '')[d - 1] === '1';
+      if (isW && !wed) return b ? 1 : -1; return b ? 2 : 0;
+    };
+    const wd = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+    V.innerHTML = `<div class="filters">${ks.map(([k, l]) => `<button class="btn ${CALK === k ? 'p' : ''}" data-c="${k}">${l}</button>`).join('')}</div>
+      <div class="legend"><span style="--c:var(--okb)">ทำแล้ว</span><span style="--c:var(--warnb)">${CALK === 'open' ? 'ทำหลัง 12:00' : CALK === 'fw' || CALK === 'wi' ? 'ทำแต่ไม่ใช่วันพุธ (ไม่นับ)' : ''}</span><span style="--c:var(--badb)">ไม่ได้ทำ</span><span style="--c:var(--na)">ไม่ต้องทำ</span></div>
+      <div class="panel"><table class="cal"><thead><tr><th class="sh">สาขา</th>${all.map(d => `<th class="n" style="text-align:center;padding:2px">${d}<br><span style="font-weight:400">${wd[new Date(C.Y, C.M - 1, d).getDay()]}</span></th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr><td class="sh">${r.s.code} ${r.s.name}</td>${all.map(d => { const c = code(r, d), op = CALK === 'open' ? ((DATA.sdOpen[r.s.code] || '').split(',')[d - 1] || '') : ''; return `<td class="${c < 0 ? 'cn' : 'c' + c}" title="${d}/${C.M}${op ? ' เปิด ' + op : ''}">${c === 2 ? '✓' : c === 1 ? '!' : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
+      <div class="note">วันที่ ${C.today} คือวันนี้ ข้อมูล ณ ${DATA.asOf.slice(11)} น.</div>`;
+    V.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { CALK = b.dataset.c; render(); });
+  } else if (TAB === 'tm') {
+    const ppl = tmPeople().filter(p => { const fr = $('#sFrm').value; return !fr || p.name === fr; });
+    V.innerHTML = `<div class="panel"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th class="n">เป้า (สาขา)</th><th class="n">ตรวจแล้ว (สาขาไม่ซ้ำ)</th><th class="n">Sales</th><th class="n">After Sales</th><th class="n">Retention</th><th>Area ที่ตรวจ</th><th>สถานะ</th></tr></thead><tbody>${ppl.map(p => `<tr><td>${p.id}</td><td>${p.name}</td><td>${p.pos}</td><td class="n">${p.target || '–'}</td><td class="n">${p.n}</td><td class="n">${p.fns['Sales'] || 0}</td><td class="n">${p.fns['After Sales'] || 0}</td><td class="n">${p.fns['Retention'] || 0}</td><td>${[...p.areas].join(', ')}</td><td>${p.ok == null ? '<span class="x">ไม่มีเป้า</span>' : p.ok ? '<span class="pill g">ครบ</span>' : `<span class="pill r">ขาด ${p.target - p.n}</span>`}</td></tr>`).join('')}</tbody></table></div>
+      <div class="note">เป้า: AM 2 สาขา, FC 2 สาขา, FRM 4 สาขา (นับสาขาไม่ซ้ำ) • ตัวเลข Sales/After Sales/Retention = จำนวนครั้งที่ตรวจ • AM ที่ดูแล 2 พื้นที่ ดูคอลัมน์ Area ที่ตรวจว่าครบทั้ง 2 พื้นที่หรือไม่ • FRM ใน Master ที่ยังไม่ได้ตรวจแสดงด้วย</div>`;
+  } else if (TAB === 'miss') {
+    const L = missList(C, rows);
+    V.innerHTML = `<div class="panel"><table><thead><tr><th>รหัส</th><th>สาขา</th><th>Area</th><th>FRM</th><th>หัวข้อ</th><th class="n">ขาด</th><th>วันที่ขาด</th></tr></thead><tbody>${L.map(x => `<tr><td>${x[0]}</td><td>${x[1]}</td><td>${x[2]}</td><td>${x[3]}</td><td>${x[4]}</td><td class="n">${x[5]}</td><td style="white-space:normal;min-width:260px">${x[6]}</td></tr>`).join('')}</tbody></table></div><div class="note">${L.length} รายการ</div>`;
+  } else {
+    V.innerHTML = `<div class="panel" style="padding:14px 18px"><table><thead><tr><th>หัวข้อ</th><th>สาขาที่ต้องทำ</th><th>ความถี่</th><th>วิธีนับ</th></tr></thead><tbody>
+      <tr><td>Store Daily – เปิดร้าน</td><td>ทุกสาขา</td><td>รายวัน</td><td>มี Shop Open ก่อน 12:00 น. (ทำหลัง 12:00 = ไม่นับ แสดงสีเหลืองในปฏิทิน)</td></tr>
+      <tr><td>Store Daily – ปิดร้าน</td><td>ทุกสาขา</td><td>รายวัน</td><td>มี Shop Close ในวันนั้น</td></tr>
+      <tr><td>Fraud Daily</td><td>ตามตัวเลือก Fraud ด้านบน</td><td>รายวัน</td><td>มีกลุ่ม Daily ในวันนั้น</td></tr>
+      <tr><td>Fraud Weekly</td><td>ตามตัวเลือก Fraud ด้านบน</td><td>ทุกวันพุธ</td><td>ทำวันพุธเท่านั้น วันอื่นไม่นับ</td></tr>
+      <tr><td>Weekly Intransit</td><td>ทุกสาขา</td><td>ทุกวันพุธ</td><td>อัปโหลดรูปวันพุธเท่านั้น วันอื่นไม่นับ</td></tr>
+      <tr><td>Trade-in</td><td>ทุกสาขา</td><td>รายวัน</td><td>มีการส่งแบบฟอร์มในวันนั้น (ตอบ “ไม่มี” ก็นับว่าทำ)</td></tr>
+      <tr><td>Cross Store</td><td>ทุกสาขา</td><td>รายเดือน</td><td>สาขาถูกตรวจอย่างน้อย 1 ครั้งในเดือน</td></tr>
+      <tr><td>Store Visit</td><td>ทุกสาขา</td><td>รายเดือน</td><td>สาขาถูกตรวจเยี่ยมอย่างน้อย 1 ครั้งในเดือน</td></tr>
+      <tr><td>Retail TM</td><td>ทุกสาขา / รายบุคคล</td><td>รายเดือน</td><td>รายสาขา: ถูกตรวจในเดือน • รายบุคคล: AM 2, FC 2, FRM 4 สาขาไม่ซ้ำ</td></tr>
+      </tbody></table><div class="note">รายวัน/รายสัปดาห์นับถึงเมื่อวาน (วันที่ ${C.today - 1}) เพราะวันนี้ยังไม่จบวัน • สาขาที่ไม่อยู่ใน Master Shop จะไม่ถูกนับ</div></div>`;
+  }
+}
+function missList(C, rows) {
+  const L = [];
+  for (const r of rows) for (const T of TOPICS) { const t = r.t[T.k]; if (!t || !t.due) continue; if (T.f === 'M') { if (!t.done) L.push([r.s.code, r.s.name, r.s.area, r.s.frm, T.name, 1, 'ยังไม่ทำในเดือนนี้']); } else if (t.miss.length) L.push([r.s.code, r.s.name, r.s.area, r.s.frm, T.name, t.miss.length, dl(C, t.miss)]); }
+  return L;
+}
+
+/* ---------- Excel ---------- */
+$('#bXls').onclick = () => {
+  const { C, res } = compute(), rows = filt(res), wb = XLSX.utils.book_new();
+  const add = (name, aoa, w) => { const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = (w || aoa[0].map(() => 14)).map(x => ({ wch: x })); ws['!freeze'] = { xSplit: 0, ySplit: 1 }; XLSX.utils.book_append_sheet(wb, ws, name); };
+  const v = (t, T) => !t ? 'ไม่ต้องทำ' : !t.due ? '-' : T.f === 'M' ? (t.done ? 'ทำแล้ว (' + t.cnt + ')' : 'ยังไม่ทำ') : t.done + '/' + t.due;
+  add('สรุปรายสาขา', [['SHOP CODE', 'SHOP NAME', 'REGION', 'AREA', 'TYPE SHOP', 'SIZE', 'FRM', ...TOPICS.map(T => T.name), 'เปิดร้านหลัง 12:00 (วัน)', '% รวม', 'ครบทุกหัวข้อ'],
+    ...rows.map(r => [r.s.code, r.s.name, r.s.region, r.s.area, r.s.type, r.s.size, r.s.frm, ...TOPICS.map(T => v(r.t[T.k], T)), r.late.length, Math.round(r.pct * 1000) / 10, r.full ? 'ครบ' : 'ไม่ครบ'])], [11, 40, 8, 24, 13, 6, 22, ...TOPICS.map(() => 14), 12, 8, 10]);
+  const g = {}; rows.forEach(r => (g[r.s.region + '|' + r.s.area] = g[r.s.region + '|' + r.s.area] || []).push(r));
+  add('สรุปรายพื้นที่', [['REGION', 'AREA', 'จำนวนสาขา', ...TOPICS.map(T => T.name + ' %'), 'สาขาที่ครบทุกหัวข้อ'],
+    ...Object.keys(g).sort().map(k => [...k.split('|'), g[k].length, ...TOPICS.map(T => { const a = topicAgg(g[k], T.k); return a.p == null ? '-' : Math.round(a.p * 1000) / 10; }), g[k].filter(r => r.full).length]),
+    ['รวม', '', rows.length, ...TOPICS.map(T => { const a = topicAgg(rows, T.k); return a.p == null ? '-' : Math.round(a.p * 1000) / 10; }), rows.filter(r => r.full).length]], [8, 26, 10, ...TOPICS.map(() => 14), 12]);
+  add('รายการที่ขาด', [['SHOP CODE', 'SHOP NAME', 'AREA', 'FRM', 'หัวข้อ', 'จำนวนที่ขาด', 'วันที่ขาด'], ...missList(C, rows)], [11, 40, 24, 22, 26, 10, 80]);
+  add('Retail TM รายบุคคล', [['รหัส', 'ชื่อ', 'ตำแหน่ง', 'เป้า (สาขา)', 'ตรวจแล้ว (สาขาไม่ซ้ำ)', 'Sales', 'After Sales', 'Retention', 'Area ที่ตรวจ', 'สถานะ'],
+    ...tmPeople().map(p => [p.id, p.name, p.pos, p.target || '-', p.n, p.fns['Sales'] || 0, p.fns['After Sales'] || 0, p.fns['Retention'] || 0, [...p.areas].join(', '), p.ok == null ? 'ไม่มีเป้า' : p.ok ? 'ครบ' : 'ขาด ' + (p.target - p.n)])], [10, 26, 10, 10, 12, 8, 10, 10, 40, 10]);
+  const dd = [...Array(DATA.days).keys()].map(i => i + 1);
+  add('Store Daily รายวัน', [['SHOP CODE', 'SHOP NAME', 'AREA', ...dd.map(d => 'เปิด ' + d), ...dd.map(d => 'ปิด ' + d)], ...rows.map(r => { const c = DATA.sd[r.s.code] || '', o = (DATA.sdOpen[r.s.code] || '').split(','); return [r.s.code, r.s.name, r.s.area, ...dd.map(d => d > C.today ? '' : o[d - 1] || 'ไม่ทำ'), ...dd.map(d => d > C.today ? '' : '345'.includes(c[d - 1] || '0') ? '✓' : 'ไม่ทำ')]; })], [11, 40, 24, ...dd.map(() => 7), ...dd.map(() => 6)]);
+  add('ข้อมูล', [['รายการ', 'ค่า'], ['เดือน', DATA.month], ['ข้อมูล ณ', DATA.asOf], ['นับรายวัน/รายสัปดาห์ถึงวันที่', C.today - 1], ['ตัวเลือก Fraud', $('#sScope').selectedOptions[0].text], ['จำนวนสาขา (หลังกรอง)', rows.length], ...Object.entries(DATA.counts).map(([k, n]) => ['แถวข้อมูล ' + k, n])], [30, 30]);
+  XLSX.writeFile(wb, `Checklist_Summary_${DATA.asOf.slice(0, 10).replace(/-/g, '')}.xlsx`);
+};
+
+/* ---------- init ---------- */
+function init() {
+  $('#mstat').textContent = MASTER ? `Master Shop: ${MASTER.length} สาขา` : 'ยังไม่มี Master Shop — กดปุ่ม “อัปเดต Master Shop” แล้วเลือกไฟล์ ตารางประเภท checklist.xlsx';
+  if (!DATA || !MASTER) { $('#start').hidden = false; $('#app').hidden = true; return; }
+  $('#start').hidden = true; $('#app').hidden = false; $('#bXls').disabled = false;
+  const [Y, M] = DATA.month.split('-').map(Number);
+  $('#asof').textContent = `เดือน ${TH_MON[M]} ${Y + 543} • ข้อมูล ณ ${+DATA.asOf.slice(8, 10)} ${TH_MON[M]} ${DATA.asOf.slice(11)} น. • Master ${MASTER.length} สาขา`;
+  const mset = new Set(MASTER.map(s => s.code)), extra = new Set();
+  ['sd', 'fd', 'wi', 'ti', 'cs', 'sv'].forEach(k => Object.keys(DATA[k]).forEach(c => { if (!mset.has(c)) extra.add(c); }));
+  $('#foot').textContent = extra.size ? `สาขาที่มีข้อมูลแต่ไม่อยู่ใน Master Shop (ไม่นับ) ${extra.size} สาขา: ${[...extra].map(c => c + ' ' + (DATA.names[c] || '')).join(', ')}` : '';
+  fillFilters(); render();
+}
+['#sRegion', '#sArea', '#sType', '#sFrm', '#sScope', '#onlyMiss'].forEach(s => $(s).onchange = () => { if (s === '#sRegion') fillFilters(); LS.set('acl-scope', $('#sScope').value); render(); });
+$('#q').oninput = render;
+$('#bmk').href = BOOKMARKLET; $('#bmk').onclick = e => { e.preventDefault(); alert('ลากปุ่มนี้ไปวางที่แถบบุ๊กมาร์ก แล้วกดปุ่มนั้นตอนอยู่บนหน้า Retail Checklist Report'); };
+{ const sc = LS.get('acl-scope'); if (sc) $('#sScope').value = sc; }
+MASTER = LS.get('acl-master') || MASTER;
+DATA = DATA || LS.get('acl-data');
+init();
+</script>
+</body>
+</html>
