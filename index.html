@@ -30,6 +30,8 @@ header.top h1 small{display:block;font-size:13px;color:rgba(255,255,255,.85);fon
 .meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:rgba(255,255,255,.82)} .meta b{color:#fff;font-weight:600}
 .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer;white-space:nowrap}
 .btn:hover{border-color:var(--ink3)} .btn:disabled{opacity:.5;cursor:default}
+header.top #sMon{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);color:#fff;font-weight:700}
+header.top #sMon option{color:#16243a;background:#fff}
 header.top .btn{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);color:#fff}
 header.top .btn.hl{background:#fff;color:var(--hero1);border-color:#fff;font-weight:700}
 :root[data-theme="dark"] header.top .btn.hl{color:#16243a}
@@ -115,9 +117,10 @@ body.expand::before{content:'';position:fixed;inset:0;background:rgba(8,10,16,.4
 <div class="wrap">
   <header class="top">
     <div>
-      <h1 id="ttl" title="">Auto Checklist<small>สรุปการทำ Retail Store Checklist 7 หัวข้อ เทียบ Master Shop · เดือนปัจจุบัน</small></h1>
+      <h1 id="ttl" title="">Auto Checklist<small>สรุปการทำ Retail Store Checklist 7 หัวข้อ เทียบ Master Shop · เดือนนี้และเดือนที่แล้ว</small></h1>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+      <select id="sMon" title="เลือกเดือน" hidden></select>
       <div class="meta" id="meta"><span id="asof">ยังไม่มีข้อมูล</span></div>
       <button class="btn hl adm" hidden id="bRef" title="โหลดข้อมูลล่าสุดมาแสดง">⟳ อัปเดตหน้าจอ</button>
       <button class="btn" id="bUpd" hidden></button>
@@ -181,7 +184,7 @@ function closeCode(code, d) {
   return !t || t < CLOSE_BY ? 2 : 1;
 }
 
-let MASTER = typeof EMBED_MASTER !== 'undefined' ? EMBED_MASTER : null, DATA = null, TAB = 'shop', CALK = 'open', SORT = null;
+let MASTER = typeof EMBED_MASTER !== 'undefined' ? EMBED_MASTER : null, DATA = null, ROOT = null, MON = null, TAB = 'shop', CALK = 'open', SORT = null;
 const $ = s => document.querySelector(s);
 const LS = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
 const TH_MON = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -214,10 +217,19 @@ $('#fMaster').onchange = async e => {
   e.target.value = '';
 };
 
+/* ---------- months: file holds this month (top level) + previous month (.prev) ---------- */
+function monthsOf(r) { return r ? [r, r.prev].filter(x => x && x.sd) : []; }
+function setRoot(r) {
+  ROOT = r; const ms = monthsOf(r);
+  DATA = ms.find(x => x.month === MON) || ms[0] || null; if (DATA) MON = DATA.month;
+  const sel = $('#sMon'); if (!sel) return;
+  sel.innerHTML = ms.map(x => { const [Y, M] = x.month.split('-').map(Number); return `<option value="${x.month}">${TH_MON[M]} ${Y + 543}${x.full ? ' (ทั้งเดือน)' : ' (เดือนนี้)'}</option>`; }).join('');
+  sel.value = MON || ''; sel.hidden = ms.length < 2;
+}
 /* ---------- data in ---------- */
 function loadData(d) {
   if (!d || d.v !== 1 || !d.sd) { alert('ไฟล์ข้อมูลไม่ถูกต้อง'); return; }
-  DATA = d; LS.set('acl-data', d);
+  setRoot(d); LS.set('acl-data', d);
   if (d.master && d.master.length) { MASTER = d.master; LS.set('acl-master', MASTER); }
   init();
 }
@@ -245,7 +257,7 @@ function loadLatest(cb) {
   document.head.appendChild(sc);
 }
 $('#bRef').onclick = () => {
-  const b = $('#bRef'), prev = stamp(DATA); b.disabled = true; b.textContent = '⟳ กำลังโหลด…';
+  const b = $('#bRef'), prev = stamp(ROOT); b.disabled = true; b.textContent = '⟳ กำลังโหลด…';
   loadLatest(d => {
     b.disabled = false; b.textContent = '⟳ อัปเดตหน้าจอ';
     if (d && stamp(d) !== prev) { loadData(d); toast('อัปเดตหน้าจอแล้ว • ข้อมูล ณ ' + d.asOf, 5000); }
@@ -255,7 +267,7 @@ $('#bRef').onclick = () => {
 const UPD_LABEL = '⟳ อัปเดตข้อมูล';
 function updBusy(on) { const b = $('#bUpd'); b.disabled = on; b.textContent = on ? '⏳ กำลังดึงข้อมูล…' : UPD_LABEL; }
 $('#bUpd').onclick = () => {
-  const prev = stamp(window.ACL_DATA || DATA);
+  const prev = stamp(window.ACL_DATA || ROOT);
   let launched = false;
   const onBlur = () => { launched = true; };
   window.addEventListener('blur', onBlur, { once: true });
@@ -276,6 +288,11 @@ if (window.opener) try { window.opener.postMessage({ type: 'acl-ready' }, '*'); 
 /* ---------- compute ---------- */
 function ctx() {
   const [Y, M] = DATA.month.split('-').map(Number);
+  if (DATA.full) {   // previous month: every day of the month is due
+    const due = [], weds = [];
+    for (let d = 1; d <= DATA.days; d++) { due.push(d); if (new Date(Y, M - 1, d).getDay() === 3) weds.push(d); }
+    return { Y, M, due, weds, today: DATA.days, todayWed: false, dueOpen: due, dueClose: due, hm: '23:59', full: true };
+  }
   const asDay = +DATA.asOf.slice(8, 10);
   const due = [], weds = [];
   for (let d = 1; d < asDay; d++) { due.push(d); if (new Date(Y, M - 1, d).getDay() === 3) weds.push(d); }
@@ -414,7 +431,8 @@ function renderInner() {
   fillFilters(); fillTopics(base);
   $('#cards').innerHTML = TOPICS.map(T => { const a = topicAgg(base, T.k); return `<div class="card kpi" data-k="${T.k}" style="--kc:${col(a.p)}${SEL.has(T.k) ? ';box-shadow:0 0 0 3px var(--accent-soft);border-color:var(--accent)' : ''}" title="คลิกเพื่อดูสาขาที่ยังขาด"><div class="t">${T.name}<br><span>${FREQ[T.f]}</span></div><div class="v" style="color:${col(a.p)}">${fp(a.p)}</div><div class="s">${T.f === 'M' ? `${a.d}/${a.u} สาขา` : `${a.d.toLocaleString()}/${a.u.toLocaleString()} ครั้ง • ${a.n} สาขา`}</div><div class="bar"><i style="width:${(a.p || 0) * 100}%;background:${col(a.p)}"></i></div></div>`; }).join('');
   document.querySelectorAll('.kpi').forEach(c => c.onclick = () => { const k = c.dataset.k; if (SEL.has(k) && TAB === 'miss') SEL.delete(k); else { SEL.clear(); SEL.add(k); } TAB = 'miss'; render(); });
-  const tabs = [['today', `วันนี้ (${C.today}/${C.M})`], ['shop', 'รายสาขา'], ['area', 'รายพื้นที่'], ['cal', 'ปฏิทินรายวัน'], ['tm', 'Retail TM รายบุคคล'], ['miss', 'รายการที่ขาด'], ['rule', 'เงื่อนไข']];
+  if (C.full && TAB === 'today') TAB = 'shop';
+  const tabs = [...(C.full ? [] : [['today', `วันนี้ (${C.today}/${C.M})`]]), ['shop', 'รายสาขา'], ['area', 'รายพื้นที่'], ['cal', 'ปฏิทินรายวัน'], ['tm', 'Retail TM รายบุคคล'], ['miss', 'รายการที่ขาด'], ['rule', 'เงื่อนไข']];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button class="tab ${TAB === k ? 'on' : ''}" data-k="${k}">${l}</button>`).join('') + (TAB === 'rule' || TAB === 'today' ? '' : `<button class="btn ${EXPAND ? 'primary xon' : ''}" id="bExp" title="ขยายตารางเต็มจอ (Esc เพื่อย่อ)">${EXPAND ? '✕ ย่อตาราง' : '⛶ ขยายตาราง'}</button>`);
   if (TAB === 'rule') EXPAND = false;
   if ($('#bExp')) $('#bExp').onclick = () => { EXPAND = EXPAND ? false : 'main'; render(); };
@@ -425,7 +443,7 @@ function renderInner() {
     if (SORT) list.sort((a, b) => { const va = SORT.k === 'pct' ? a.pct : a.t[SORT.k] ? pct(a.t[SORT.k].done, a.t[SORT.k].due) ?? -1 : -2, vb = SORT.k === 'pct' ? b.pct : b.t[SORT.k] ? pct(b.t[SORT.k].done, b.t[SORT.k].due) ?? -1 : -2; return (va - vb) * SORT.d; });
     const cell = (t, T) => { const h = SEL.has(T.k) ? ' hl' : ''; if (!t) return `<td class="n x${h}">ไม่ต้องทำ</td>`; if (!t.due) return `<td class="n x${h}">–</td>`; const p = pct(t.done, t.due); const tip = t.miss.length ? `ขาด: ${dl(C, t.miss)}` : ''; return `<td class="n${h}" title="${tip}"><span class="pill ${cls(p)}">${T.f === 'M' ? (t.done ? '✓ ' + t.cnt + ' ครั้ง' : 'ยังไม่ทำ') : t.done + '/' + t.due}</span></td>`; };
     V.innerHTML = `<div class="panel"><table><thead><tr><th>รหัส</th><th>สาขา</th><th>Area</th><th>Type</th><th>Size</th><th>FRM</th>${TOPICS.map(T => `<th class="n${SEL.has(T.k) ? ' hl' : ''}" data-s="${T.k}">${T.short}</th>`).join('')}<th class="n" data-s="pct">รวม</th></tr></thead><tbody>${list.map(r => `<tr><td>${r.s.code}</td><td>${r.s.name}</td><td>${r.s.area}</td><td>${r.s.type}</td><td>${r.s.size}</td><td>${r.s.frm || ''}</td>${TOPICS.map(T => cell(r.t[T.k], T)).join('')}<td class="n"><b style="color:${col(r.pct)}">${fp(r.pct)}</b></td></tr>`).join('')}</tbody></table></div>
-      <div class="note">${list.length} สาขา • เอาเมาส์ชี้ที่ตัวเลขเพื่อดูวันที่ขาด • กดหัวคอลัมน์เพื่อเรียง • เปิดร้านนับถึงวันที่ ${C.dueOpen.slice(-1)[0] || '-'} • ปิดร้านนับถึงวันที่ ${C.dueClose.slice(-1)[0] || '-'} • หัวข้ออื่นนับถึงเมื่อวาน (${C.today - 1}/${C.M})</div>`;
+      <div class="note">${list.length} สาขา • เอาเมาส์ชี้ที่ตัวเลขเพื่อดูวันที่ขาด • กดหัวคอลัมน์เพื่อเรียง • ${C.full ? `นับครบทั้งเดือน (1–${C.today}/${C.M})` : `เปิดร้านนับถึงวันที่ ${C.dueOpen.slice(-1)[0] || '-'} • ปิดร้านนับถึงวันที่ ${C.dueClose.slice(-1)[0] || '-'} • หัวข้ออื่นนับถึงเมื่อวาน (${C.today - 1}/${C.M})`}</div>`;
     V.querySelectorAll('th[data-s]').forEach(th => th.onclick = () => { SORT = { k: th.dataset.s, d: SORT && SORT.k === th.dataset.s ? -SORT.d : 1 }; render(); });
   } else if (TAB === 'today') {
     const L = todayList(C, rows), hm = C.hm;
@@ -458,7 +476,7 @@ function renderInner() {
     V.innerHTML = `<div class="filters">${ks.map(([k, l]) => `<button class="btn ${CALK === k ? 'primary' : ''}" data-c="${k}">${l}</button>`).join('')}</div>
       <div class="legend"><span style="--c:var(--ok-soft)">ทำแล้ว</span><span style="--c:var(--part-soft)">${CALK === 'open' ? 'ทำหลัง 12:00 (ไม่นับ)' : CALK === 'close' ? 'ทำหลัง 22:00 (ไม่นับ)' : CALK === 'fw' || CALK === 'wi' ? 'ทำแต่ไม่ใช่วันพุธ (ไม่นับ)' : ''}</span><span style="--c:var(--bad-soft)">ไม่ได้ทำ</span><span style="--c:var(--na-soft)">ไม่ต้องทำ</span></div>
       <div class="panel"><table class="cal"><colgroup><col class="sc">${all.map(() => '<col>').join('')}</colgroup><thead><tr><th class="sh">สาขา</th>${all.map(d => `<th>${d}<br><span style="font-weight:400">${wd[new Date(C.Y, C.M - 1, d).getDay()]}</span></th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr><td class="sh" title="${esc(r.s.code + ' ' + r.s.name)}"><small>${r.s.code}</small> ${esc(r.s.name)}</td>${all.map(d => { const c = code(r, d), op = CALK === 'open' ? ((DATA.sdOpen[r.s.code] || '').split(',')[d - 1] || '') : CALK === 'close' && DATA.sdClose ? ((DATA.sdClose[r.s.code] || '').split(',')[d - 1] || '') : ''; return `<td class="${c < 0 ? 'cn' : 'c' + c}" title="${d}/${C.M}${op ? (CALK === 'open' ? ' เปิด ' : ' ปิด ') + op : ''}">${c === 2 ? '✓' : c === 1 ? '!' : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
-      <div class="note">วันที่ ${C.today} คือวันนี้ ข้อมูล ณ ${DATA.asOf.slice(11)} น.</div>`;
+      <div class="note">${C.full ? 'ข้อมูลทั้งเดือน' : `วันที่ ${C.today} คือวันนี้ ข้อมูล ณ ${DATA.asOf.slice(11)} น.`}</div>`;
     V.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { CALK = b.dataset.c; render(); });
   } else if (TAB === 'tm') {
     const pos = ($('#sPos') || {}).value || '', all = tmPeople(rows), ppl = all.filter(p => !pos || p.pos === pos);
@@ -510,13 +528,13 @@ $('#bXls').onclick = () => {
   add('สรุปรายพื้นที่', [['REGION', 'AREA', 'จำนวนสาขา', ...TOPICS.map(T => T.name + ' %'), 'สาขาที่ครบทุกหัวข้อ'],
     ...Object.keys(g).sort().map(k => [...k.split('|'), g[k].length, ...TOPICS.map(T => { const a = topicAgg(g[k], T.k); return a.p == null ? '-' : Math.round(a.p * 1000) / 10; }), g[k].filter(r => r.full).length]),
     ['รวม', '', rows.length, ...TOPICS.map(T => { const a = topicAgg(rows, T.k); return a.p == null ? '-' : Math.round(a.p * 1000) / 10; }), rows.filter(r => r.full).length]], [8, 26, 10, ...TOPICS.map(() => 14), 12]);
-  add(`วันนี้ ${C.today}-${C.M}`, [['SHOP CODE', 'SHOP NAME', 'AREA', 'FRM', 'เปิดร้าน', 'เวลาเปิด', 'ปิดร้าน', 'เวลาปิด'], ...todayList(C, rows).filter(x => x.open !== 'ok' || x.close !== 'ok').map(x => [x.r.s.code, x.r.s.name, x.r.s.area, x.r.s.frm, x.open === 'ok' ? 'ทำแล้ว' : x.open === 'late' ? 'หลัง 12:00' : 'ยังไม่ทำ', x.ot, x.close === 'ok' ? 'ทำแล้ว' : x.close === 'late' ? 'หลัง 22:00' : 'ยังไม่ทำ', x.ct])], [11, 40, 24, 22, 12, 9, 12, 9]);
+  if (!C.full) add(`วันนี้ ${C.today}-${C.M}`, [['SHOP CODE', 'SHOP NAME', 'AREA', 'FRM', 'เปิดร้าน', 'เวลาเปิด', 'ปิดร้าน', 'เวลาปิด'], ...todayList(C, rows).filter(x => x.open !== 'ok' || x.close !== 'ok').map(x => [x.r.s.code, x.r.s.name, x.r.s.area, x.r.s.frm, x.open === 'ok' ? 'ทำแล้ว' : x.open === 'late' ? 'หลัง 12:00' : 'ยังไม่ทำ', x.ot, x.close === 'ok' ? 'ทำแล้ว' : x.close === 'late' ? 'หลัง 22:00' : 'ยังไม่ทำ', x.ct])], [11, 40, 24, 22, 12, 9, 12, 9]);
   add('รายการที่ขาด', [['SHOP CODE', 'SHOP NAME', 'AREA', 'FRM', 'หัวข้อ', 'จำนวนที่ขาด', 'วันที่ขาด'], ...missList(C, rows).filter(x => !F.sel.miss.size || F.sel.miss.has(x[7])).map(x => x.slice(0, 7))], [11, 40, 24, 22, 26, 10, 80]);
   add('Retail TM รายบุคคล', [['รหัส', 'ชื่อ', 'ตำแหน่ง', 'เป้า (สาขา)', 'ตรวจแล้ว (สาขาไม่ซ้ำ)', 'Sales', 'After Sales', 'Retention', 'พื้นที่ที่ดูแล', 'Area ที่ตรวจ', '%', 'สถานะ'],
     ...tmPeople(rows).map(p => [p.id, p.name, p.pos, p.target || '-', p.n, p.fns['Sales'] || 0, p.fns['After Sales'] || 0, p.fns['Retention'] || 0, [...p.ownAreas].join(', '), [...p.areas].join(', '), p.pc == null ? '-' : Math.round(p.pc * 1000) / 10, p.ok == null ? 'ไม่มีเป้า' : p.ok ? 'ครบ 100%' : p.why])], [10, 26, 10, 10, 12, 8, 10, 10, 30, 30, 8, 30]);
   const dd = [...Array(DATA.days).keys()].map(i => i + 1);
   add('Store Daily รายวัน', [['SHOP CODE', 'SHOP NAME', 'AREA', ...dd.map(d => 'เปิด ' + d), ...dd.map(d => 'ปิด ' + d)], ...rows.map(r => { const c = DATA.sd[r.s.code] || '', o = (DATA.sdOpen[r.s.code] || '').split(','); return [r.s.code, r.s.name, r.s.area, ...dd.map(d => d > C.today ? '' : o[d - 1] || 'ไม่ทำ'), ...dd.map(d => d > C.today ? '' : closeCode(r.s.code, d) ? (((DATA.sdClose && (DATA.sdClose[r.s.code] || '').split(',')[d - 1]) || '✓')) : 'ไม่ทำ')]; })], [11, 40, 24, ...dd.map(() => 7), ...dd.map(() => 6)]);
-  add('ข้อมูล', [['รายการ', 'ค่า'], ['เดือน', DATA.month], ['ข้อมูล ณ', DATA.asOf], ['นับรายวัน/รายสัปดาห์ถึงวันที่', C.today - 1], ['ตัวเลือก Fraud', $('#sScope').selectedOptions[0].text], ['จำนวนสาขา (หลังกรอง)', rows.length], ...Object.entries(DATA.counts).map(([k, n]) => ['แถวข้อมูล ' + k, n])], [30, 30]);
+  add('ข้อมูล', [['รายการ', 'ค่า'], ['เดือน', DATA.month], ['ข้อมูล ณ', DATA.asOf], ['นับรายวัน/รายสัปดาห์ถึงวันที่', C.full ? C.today : C.today - 1], ['ตัวเลือก Fraud', $('#sScope').selectedOptions[0].text], ['จำนวนสาขา (หลังกรอง)', rows.length], ...Object.entries(DATA.counts).map(([k, n]) => ['แถวข้อมูล ' + k, n])], [30, 30]);
   XLSX.writeFile(wb, `Checklist_Summary_${DATA.asOf.slice(0, 10).replace(/-/g, '')}.xlsx`);
 };
 
@@ -527,12 +545,12 @@ function init() {
   $('#start').hidden = true; $('#app').hidden = false; $('#bXls').disabled = false;
   const [Y, M] = DATA.month.split('-').map(Number);
   const g = DATA.gen ? new Date(DATA.gen) : null;
-  $('#meta').innerHTML = `<span>เดือน <b>${TH_MON[M]} ${Y + 543}</b></span><span>ข้อมูล ณ <b>${+DATA.asOf.slice(8, 10)} ${TH_MON[M]} ${DATA.asOf.slice(11)} น.</b></span><span>Master <b>${MASTER.length}</b> สาขา</span>`;
+  $('#meta').innerHTML = (monthsOf(ROOT).length > 1 ? '' : `<span>เดือน <b>${TH_MON[M]} ${Y + 543}</b></span>`) + (DATA.full ? `<span>ข้อมูล <b>ทั้งเดือน 1–${DATA.days} ${TH_MON[M]}</b></span>` : `<span>ข้อมูล ณ <b>${+DATA.asOf.slice(8, 10)} ${TH_MON[M]} ${DATA.asOf.slice(11)} น.</b></span>`) + `<span>Master <b>${MASTER.length}</b> สาขา</span>`;
   const mset = new Set(MASTER.map(s => s.code)), extra = new Set();
   ['sd', 'fd', 'wi', 'ti', 'cs', 'sv'].forEach(k => Object.keys(DATA[k]).forEach(c => { if (c && c !== 'null' && !mset.has(c)) extra.add(c); }));
-  $('#foot').textContent = extra.size ? `สาขาที่มีข้อมูลแต่ไม่อยู่ใน Master Shop (ไม่นับ) ${extra.size} สาขา: ${[...extra].map(c => c + ' ' + (DATA.names[c] || '')).join(', ')}` : '';
+  $('#foot').textContent = extra.size ? `สาขาที่มีข้อมูลแต่ไม่อยู่ใน Master Shop (ไม่นับ) ${extra.size} สาขา: ${[...extra].map(c => c + ' ' + (((DATA.names || ROOT.names || {})[c]) || '')).join(', ')}` : '';
   const su = $('#setup');
-  if (LOCAL && !DATA.gen) { su.hidden = false; su.innerHTML = '<b>อัปเดตข้อมูล</b><br>กดปุ่ม <b>Auto Checklist Update</b> บนหน้าจอ Desktop (ครั้งแรกให้ดับเบิลคลิกไฟล์ <b>อัปเดต Auto Checklist.bat</b> ใน <code>D:\\Auto Checklist</code> หนึ่งครั้ง ระบบจะสร้างปุ่มบน Desktop ให้) → ล็อกอินในหน้าต่างเบราว์เซอร์ถ้าระบบถาม → รอ 1–3 นาที ระบบดึงข้อมูลและขึ้น GitHub ให้เอง'; } else su.hidden = true;
+  if (LOCAL && !ROOT.gen) { su.hidden = false; su.innerHTML = '<b>อัปเดตข้อมูล</b><br>กดปุ่ม <b>Auto Checklist Update</b> บนหน้าจอ Desktop (ครั้งแรกให้ดับเบิลคลิกไฟล์ <b>อัปเดต Auto Checklist.bat</b> ใน <code>D:\\Auto Checklist</code> หนึ่งครั้ง ระบบจะสร้างปุ่มบน Desktop ให้) → ล็อกอินในหน้าต่างเบราว์เซอร์ถ้าระบบถาม → รอ 1–3 นาที ระบบดึงข้อมูลและขึ้น GitHub ให้เอง'; } else su.hidden = true;
   render();
 }
 ['#sScope', '#onlyMiss'].forEach(s => $(s).onchange = () => { LS.set('acl-scope', $('#sScope').value); render(); });
@@ -549,9 +567,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && EXPAND) { 
 $('#bmk').href = BOOKMARKLET; $('#bmk').onclick = e => { e.preventDefault(); alert('ลากปุ่มนี้ไปวางที่แถบบุ๊กมาร์ก แล้วกดปุ่มนั้นตอนอยู่บนหน้า Retail Checklist Report'); };
 { const sc = LS.get('acl-scope'); if (sc) $('#sScope').value = sc; }
 MASTER = LS.get('acl-master') || MASTER;
-DATA = DATA || LS.get('acl-data');
-if (window.ACL_DATA && (!DATA || stamp(window.ACL_DATA) >= stamp(DATA) || window.ACL_DATA.asOf >= DATA.asOf)) { DATA = window.ACL_DATA; LS.set('acl-data', DATA); }
-if (DATA && DATA.master && DATA.master.length) MASTER = DATA.master;
+{ let r = LS.get('acl-data');
+  if (window.ACL_DATA && (!r || stamp(window.ACL_DATA) >= stamp(r) || window.ACL_DATA.asOf >= r.asOf)) { r = window.ACL_DATA; LS.set('acl-data', r); }
+  if (r) setRoot(r); }
+if (ROOT && ROOT.master && ROOT.master.length) MASTER = ROOT.master;
+$('#sMon').onchange = e => { MON = e.target.value; setRoot(ROOT); init(); };
 $('#howto').innerHTML = 'กดปุ่ม <b>Auto Checklist Update</b> บน Desktop (ครั้งแรกดับเบิลคลิกไฟล์ <b>อัปเดต Auto Checklist.bat</b> ใน D:\\Auto Checklist)';
 $('#bmwrap').hidden = true;
 init();
