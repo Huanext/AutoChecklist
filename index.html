@@ -95,6 +95,17 @@ td.n,th.n{text-align:right}
 .cal td.sh{text-align:left;padding:0 10px;position:sticky;left:0;background:var(--panel);z-index:1;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cal td.sh small{color:var(--ink3)} .cal th.sh{position:sticky;left:0;z-index:3}
 .c0{background:var(--bad-soft);color:var(--bad)} .c1{background:var(--part-soft);color:var(--part)} .c2{background:var(--ok-soft);color:var(--ok)} .cn{background:var(--na-soft)}
+.heat td.hm{text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+.heat td.hm.g{background:var(--ok-soft);color:var(--ok)} .heat td.hm.y{background:var(--part-soft);color:var(--part)} .heat td.hm.r{background:var(--bad-soft);color:var(--bad)} .heat td.hm.x{background:var(--na-soft)}
+.heat tr.rg td{font-weight:700;background:var(--panel2)} .heat tr.rg td.hm{font-weight:800} .heat tr.tot td{border-top:2px solid var(--line)}
+.heat tr.ar{cursor:pointer} .heat tr.ar td:first-child{padding-left:22px} .heat tr.ar:hover td:first-child{text-decoration:underline;color:var(--accent)}
+.rgs{display:grid;gap:10px;margin-bottom:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))} .rgc{padding:12px 16px} .rgc .t{font-weight:700;font-size:14px} .rgc .t span{font-weight:400;color:var(--ink3);font-size:12px}
+.rgm{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px} .rgm small{display:block;font-size:11px;color:var(--ink3)} .rgm b{font-size:18px;font-variant-numeric:tabular-nums}
+.ins{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 18px;padding:12px 16px;margin-bottom:6px;font-size:12.5px} .ins small{display:block;font-size:11px;color:var(--ink3);margin-bottom:2px}
+.abars{display:flex;flex-direction:column;gap:6px;margin-top:6px} .ab{display:grid;grid-template-columns:minmax(120px,190px) 1fr 104px;gap:10px;align-items:center;font-size:12px}
+.ab .an{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:var(--ink2)} .ab .at{position:relative;display:flex;flex-direction:column;gap:2px;background:var(--na-soft);border-radius:4px;padding:2px 0}
+.ab .at i{display:block;height:7px;border-radius:3px} .ab .at em{position:absolute;left:95%;top:-2px;bottom:-2px;border-left:1.5px dashed var(--ink3)} .ab .av{font-variant-numeric:tabular-nums;color:var(--ink3)}
+@media (max-width:560px){.ab{grid-template-columns:96px 1fr 84px}.rgm b{font-size:15px}}
 .legend{display:flex;gap:4px 12px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin:8px 0}
 .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;background:var(--c)}
 .drop{border:2px dashed var(--line);border-radius:14px;padding:30px;text-align:center;background:var(--panel);margin:20px auto;max-width:720px}
@@ -415,6 +426,7 @@ const pct = (a, b) => b ? a / b : null;
 const fp = v => v == null ? '–' : (v * 100).toFixed(v >= .995 || v === 0 ? 0 : 1) + '%';
 const cls = v => v == null ? 'x' : v >= .999 ? 'g' : v >= .8 ? 'y' : 'r';
 const col = v => v == null ? 'var(--nac)' : v >= .999 ? 'var(--ok)' : v >= .8 ? 'var(--part)' : 'var(--bad)';
+const col95 = v => v == null ? 'var(--nac)' : v >= .95 ? 'var(--ok)' : v >= .8 ? 'var(--part)' : 'var(--bad)';
 const dl = (C, arr) => arr.map(d => d + '/' + C.M).join(', ');
 function topicAgg(rows, k) { let d = 0, u = 0, n = 0; for (const r of rows) { const t = r.t[k]; if (!t) continue; n++; d += Math.min(t.done, t.due); u += t.due; } return { d, u, n, p: pct(d, u) }; }
 function render() { renderInner(); applyExpand(); }
@@ -459,10 +471,30 @@ function renderInner() {
         <div><h3>ยังไม่ปิดร้าน / ปิดหลัง 22:00 ${xbtn('close')} <span>ยังไม่ทำ <b class="big" style="color:var(--bad)">${nC}</b> • ทำหลัง 22:00 <b class="big" style="color:var(--part)">${lC}</b></span></h3>${hm < '18:00' && nC === L.length ? '<div class="card" style="padding:20px;text-align:center;color:var(--ink3)">ยังไม่ถึงเวลาปิดร้าน</div>' : tbl(noClose, 'close', 'ct', CLOSE_BY)}</div>
       </div>`;
   } else if (TAB === 'area') {
-    const g = {}; rows.forEach(r => (g[r.s.region + '|' + r.s.area] = g[r.s.region + '|' + r.s.area] || []).push(r));
-    const keys = Object.keys(g).sort();
-    const line = (lbl, rs, b) => `<tr${b ? ' style="font-weight:700"' : ''}><td>${lbl}</td><td class="n">${rs.length}</td>${TOPICS.map(T => { const a = topicAgg(rs, T.k); return `<td class="n"><span class="pill ${cls(a.p)}">${fp(a.p)}</span></td>`; }).join('')}<td class="n">${rs.filter(r => r.full).length}</td></tr>`;
-    V.innerHTML = `<div class="panel"><table><thead><tr><th>Region / Area</th><th class="n">สาขา</th>${TOPICS.map(T => `<th class="n">${T.short}</th>`).join('')}<th class="n">ครบทุกหัวข้อ</th></tr></thead><tbody>${keys.map(k => line(k.replace('|', ' • '), g[k])).join('')}${line('รวม', rows, 1)}</tbody></table></div>`;
+    const AK = TOPICS.filter(T => rows.some(r => r.t[T.k] && r.t[T.k].due)).map(T => T);
+    const ga = {}, gr = {}; rows.forEach(r => { (ga[r.s.region + '|' + r.s.area] = ga[r.s.region + '|' + r.s.area] || []).push(r); (gr[r.s.region] = gr[r.s.region] || []).push(r); });
+    const ap = (rs, k) => topicAgg(rs, k).p;
+    const hc = p => p == null ? 'x' : p >= .95 ? 'g' : p >= .8 ? 'y' : 'r';
+    const hcell = (rs, T) => { const a = topicAgg(rs, T.k); return `<td class="n hm ${hc(a.p)}" title="${T.name}: ${a.u ? (a.d.toLocaleString() + '/' + a.u.toLocaleString()) : 'ยังไม่ถึงรอบ'}">${fp(a.p)}</td>`; };
+    const line = (lbl, rs, kind, area) => `<tr class="${kind}"${area ? ` data-area="${esc(area)}" title="คลิกเพื่อดูรายสาขาของพื้นที่นี้"` : ''}><td>${lbl}</td><td class="n">${rs.length}</td>${AK.map(T => hcell(rs, T)).join('')}<td class="n">${rs.filter(r => r.full).length}</td></tr>`;
+    const regs = Object.keys(gr).sort();
+    const body = regs.map(g => line(`<b>${esc(g)}</b> <span class="x">(รวม)</span>`, gr[g], 'rg') + Object.keys(ga).filter(k => k.startsWith(g + '|')).sort().map(k => line(esc(k.split('|')[1]), ga[k], 'ar', k.split('|')[1])).join('')).join('') + line('<b>รวมทั้งหมด</b>', rows, 'rg tot');
+    const kOpen = TOPICS.find(T => T.k === 'open'), kClose = TOPICS.find(T => T.k === 'close');
+    const regCards = regs.map(g => { const po = ap(gr[g], 'open'), pc = ap(gr[g], 'close'), pf = ap(gr[g], 'fd'), pt = ap(gr[g], 'ti'); return `<div class="card rgc"><div class="t">${esc(g)} <span>${gr[g].length} สาขา</span></div><div class="rgm">${[['เปิดร้าน', po], ['ปิดร้าน', pc], ['Fraud D', pf], ['Trade-in', pt]].map(([n, p]) => `<div><small>${n}</small><b style="color:${col95(p)}">${fp(p)}</b></div>`).join('')}</div></div>`; }).join('');
+    const worst = (k, n) => Object.keys(ga).map(x => [x.split('|')[1], ap(ga[x], k)]).filter(x => x[1] != null).sort((a, b) => a[1] - b[1]).slice(0, n).filter(x => x[1] < .95);
+    const fmtW = (k) => { const w = worst(k, 3); return w.length ? w.map(([a, p]) => `${esc(a)} <b style="color:${col95(p)}">${fp(p)}</b>`).join(' · ') : '<span style="color:var(--ok)">ทุกพื้นที่ ≥ 95%</span>'; };
+    V.innerHTML = `<div class="cards rgs">${regCards}</div>
+      <div class="card ins"><div><small>เปิดร้านต่ำสุด</small>${fmtW('open')}</div><div><small>ปิดร้านต่ำสุด</small>${fmtW('close')}</div><div><small>Fraud Daily ต่ำสุด</small>${fmtW('fd')}</div><div><small>Trade-in ต่ำสุด</small>${fmtW('ti')}</div></div>
+      <div class="legend"><span style="--c:var(--ok-soft)">≥ 95%</span><span style="--c:var(--part-soft)">80–95%</span><span style="--c:var(--bad-soft)">&lt; 80%</span><span style="--c:var(--na-soft)">ยังไม่ถึงรอบ</span><span class="x" style="margin-left:auto">คลิกชื่อพื้นที่เพื่อดูรายสาขา</span></div>
+      <div class="panel" data-x="main"><table class="heat"><thead><tr><th>Region / Area</th><th class="n">สาขา</th>${AK.map(T => `<th class="n" title="${T.name}">${T.short}</th>`).join('')}<th class="n">ครบทุกหัวข้อ</th></tr></thead><tbody>${body}</tbody></table></div>
+      ${kOpen && kClose ? `<div class="card" style="padding:14px 16px;margin-top:14px"><h3 style="margin:0 0 4px;font-size:14px">เปิด / ปิดร้านตรงเวลา แยกพื้นที่ <span class="x" style="font-weight:400;font-size:12px">เรียงจากเปิดร้านต่ำสุด · เส้นประ = 95%</span></h3><div class="legend"><span style="--c:var(--hero2)">เปิดร้าน (ก่อน 12:00)</span><span style="--c:var(--hero3);opacity:.6">ปิดร้าน (ก่อน 22:00)</span></div><div id="areaBars"></div></div>` : ''}
+      <div class="note">% = จำนวนครั้งที่ทำครบ ÷ จำนวนครั้งที่ต้องทำ ตามเงื่อนไขแต่ละหัวข้อ · หัวข้อที่ยังไม่ถึงรอบในช่วงนี้จะไม่แสดง</div>`;
+    V.querySelectorAll('tr.ar').forEach(tr => tr.onclick = () => { F.sel.area.clear(); F.sel.area.add(tr.dataset.area); TAB = 'shop'; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    const box = $('#areaBars');
+    if (box) {
+      const L = Object.keys(ga).map(k => ({ a: k.split('|')[1], o: ap(ga[k], 'open'), c: ap(ga[k], 'close') })).sort((x, y) => (x.o ?? 2) - (y.o ?? 2));
+      box.innerHTML = `<div class="abars">${L.map(r => `<div class="ab"><span class="an" title="${esc(r.a)}">${esc(r.a)}</span><span class="at"><i style="width:${(r.o || 0) * 100}%;background:var(--hero2)"></i><i style="width:${(r.c || 0) * 100}%;background:var(--hero3);opacity:.6"></i><em></em></span><span class="av"><b style="color:${col95(r.o)}">${fp(r.o)}</b> / <b style="color:${col95(r.c)}">${fp(r.c)}</b></span></div>`).join('')}</div>`;
+    }
   } else if (TAB === 'cal') {
     const ks = [['open', 'เปิดร้าน'], ['close', 'ปิดร้าน'], ['fd', 'Fraud Daily'], ['ti', 'Trade-in'], ['fw', 'Fraud Weekly'], ['wi', 'Weekly Intransit']];
     const N = DATA.days, all = [...Array(C.today).keys()].map(i => i + 1);
